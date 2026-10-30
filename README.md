@@ -1,5 +1,7 @@
 # DUGOUT｜棒球經理
 
+[立即試玩](https://hyyang0509.github.io/dugout-baseball/) · [程式碼](https://github.com/hyyang0509/dugout-baseball) · [測試與部署](https://github.com/hyyang0509/dugout-baseball/actions)
+
 手機與電腦可玩的棒球球團經營遊戲。v0.6 支援 MLB 30 隊、81 場生成賽程、四強季後賽、多年度經營、球員成長與退役、事件、交易及遊戲財務。
 
 未來規劃 MLB、NPB、KBO、CPBL 與跨聯盟交流，目前不是四聯盟版本。
@@ -11,7 +13,7 @@
 - 本機啟動：`python -m http.server 8000 --directory dist`，開啟 `http://localhost:8000`。
 - 網站目錄：`dist/`，不要直接發布儲存庫根目錄。
 - GitHub Pages 的 Source 選 GitHub Actions；推送到 main 後先測試再發布 dist，PR 只測試。
-- 私人儲存庫能否開啟 Pages 取決於帳號方案。未經所有者確認不得改為公開。
+- 本專案已經所有者同意設為公開，並以 GitHub Actions 發布至 GitHub Pages。
 
 ## 程式位置
 
