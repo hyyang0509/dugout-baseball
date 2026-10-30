@@ -1,0 +1,10 @@
+node_modules/
+.cache/
+*.tar.gz
+__pycache__/
+*.pyc
+.openai/
+.env
+.env.*
+!.env.example
+*.save.json
