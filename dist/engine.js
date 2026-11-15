@@ -11,6 +11,7 @@ export const hasPitch=p=>p.ratings.stuff!=null;
 export const batValue=p=>(p.ratings.contact||50)*.35+(p.ratings.power||50)*.35+(p.ratings.eye||50)*.2+(p.ratings.speed||50)*.1;
 export const pitchValue=p=>(p.ratings.stuff||50)*.4+(p.ratings.control||50)*.3+(p.ratings.movement||50)*.3;
 export function makeSchedule(ids){
+ if(ids.length!==30)return smallLeagueSchedule(ids);
  const ring=[...ids],rounds=[];
  for(let day=0;day<ids.length-1;day++){
   const games=[];for(let i=0;i<ring.length/2;i++){let a=ring[i],b=ring[ring.length-1-i];games.push(day%2?[a,b]:[b,a]);}
@@ -29,6 +30,21 @@ export function makeSchedule(ids){
  path.reverse();const directions=new Map();
  for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i];if(a!==dummy&&b!==dummy)directions.set([a,b].sort((x,y)=>x-y).join(':'),[ids[a],ids[b]]);}
  return [...base,...extra.map(day=>day.map(([a,b])=>directions.get([index.get(a),index.get(b)].sort((x,y)=>x-y).join(':'))))];
+}
+// Round robin for smaller leagues, with Euler orientation balancing home/away.
+function smallLeagueSchedule(ids){
+ if(ids.length<4||ids.length%2||new Set(ids).size!==ids.length)throw new Error('聯盟需有至少四支且偶數支不同球隊。');
+ const ring=[...ids],rounds=[];
+ for(let d=0;d<ids.length-1;d++){rounds.push(Array.from({length:ids.length/2},(_,i)=>[ring[i],ring.at(-1-i)]));ring.splice(1,0,ring.pop());}
+ const days=Array.from({length:SEASON_GAMES},(_,i)=>rounds[i%rounds.length].map(pair=>[...pair]));
+ const n=ids.length,adj=Array.from({length:n+1},()=>[]),edges=[],index=new Map(ids.map((id,i)=>[id,i]));
+ function add(a,b,pair){const id=edges.length;edges.push({a,b,pair,used:false});adj[a].push(id);adj[b].push(id);}
+ for(const day of days)for(const pair of day)add(index.get(pair[0]),index.get(pair[1]),pair);
+ for(let i=0;i<n;i++)add(i,n,null);
+ const stack=[{v:n}],tour=[];
+ while(stack.length){const v=stack.at(-1).v;while(adj[v].length&&edges[adj[v].at(-1)].used)adj[v].pop();if(!adj[v].length)tour.push(stack.pop());else{const id=adj[v].pop(),e=edges[id];e.used=true;stack.push({v:e.a===v?e.b:e.a,edge:id});}}
+ tour.reverse();for(let i=1;i<tour.length;i++){const e=edges[tour[i].edge];if(e.pair)e.pair.splice(0,2,ids[tour[i-1].v],ids[tour[i].v]);}
+ return days;
 }
 export const FIELD_POSITIONS=['C','1B','2B','3B','SS','LF','CF','RF','DH'];
 export const teamOf=(s,p)=>s.ownership?.[p.id]||p.team_id;
@@ -66,7 +82,7 @@ export function makeSeason(data,teamId,seed=Date.now()){
  for(const p of data.players)condition[p.id]={energy:100,injury:0,form:0,formDays:0};
  for(const t of data.teams){const roster=data.players.filter(p=>p.team_id===t.id);const pitchers=roster.filter(hasPitch).sort((a,b)=>(b.role==='SP')-(a.role==='SP')||pitchValue(b)-pitchValue(a));
  teams[t.id]={w:0,l:0,rs:0,ra:0,lineup:autoLineup(roster),rotation:pitchers.slice(0,5).map(p=>p.id)};}
- return migrateSeason({version:VERSION,dataVersion:data.generated_at,teamId,rng:(seed>>>0)||1234567,day:0,phase:'regular',schedule:makeSchedule(data.teams.map(t=>t.id)),teams,condition,batting:{},pitching:{},history:[],lastGame:null,event:null,eventLog:[],playoffs:null,champion:null,createdAt:new Date().toISOString()},data);
+ return migrateSeason({league:data.league||'MLB',version:VERSION,dataVersion:data.generated_at,teamId,rng:(seed>>>0)||1234567,day:0,phase:'regular',schedule:makeSchedule(data.teams.map(t=>t.id)),teams,condition,batting:{},pitching:{},history:[],lastGame:null,event:null,eventLog:[],playoffs:null,champion:null,createdAt:new Date().toISOString()},data);
 }
 function batting(s,id){return s.batting[id]??=( {g:0,pa:0,ab:0,h:0,hr:0,rbi:0,bb:0,k:0,r:0});}
 function pitching(s,id){return s.pitching[id]??=({g:0,outs:0,h:0,r:0,bb:0,k:0,pitches:0});}

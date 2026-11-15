@@ -19,6 +19,14 @@
 1. 舊網址存檔移轉，保留原進度並驗證內容。
 2. 帳號、雲端存檔、版本衝突保護與備份。玩家存檔不可提交 GitHub。
 3. 多聯盟統一球員 ID、資料格式、賽制與能力尺度，再做跨聯盟交流。
-4. CPBL 官方抓取尚未通過真實回應驗證，NPB/KBO 尚未實作，不可宣稱已有四聯盟。
+4. CPBL/NPB 官方快照已加入並可獨立開季；KBO 與跨聯盟尚未實作。能力暫為遊戲平衡值，詳見 README。
 
 初始名單為 2026/10/30 MLB 快照，非即時。新人均為虛構。RA9 不是 ERA。投打統計含季後賽，團隊勝負只計例行賽。
+
+## v0.7 三聯盟
+
+- dist/leagues.js 定義三聯盟與分開存檔；MLB 保持 dugout.save.v1，另有 dugout.save.cpbl.v1 / dugout.save.npb.v1；dugout.league 記最後選擇。
+- switchLeague 先成功取得資料再切換，先 hydrate 再 migrate；讀取失敗不覆寫原存檔。
+- 30 隊賽程算法保留；6/12 隊用循環賽與 Euler 定向產生 81 場，主客各 40/41 場。
+- fetch_asia_rosters.py 可重建官方名單，遇缺隊、重複 ID、不完整守位會失敗；npb_names_zh.json 保存中文音譯對照。
+- 47 項測試包括兩新聯盟的完整球季、換季、存檔 hydrate、交易、姓名與賽程。
