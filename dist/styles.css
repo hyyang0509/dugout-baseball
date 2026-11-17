@@ -168,3 +168,17 @@ html[data-theme=dark] .team-badge{background:var(--team);color:#f3ead3;border-co
 .matchup-board tbody th{background:#07201a;color:#f3ead3}
 .trade-player-card .profile-portrait{width:64px;height:64px;border-width:3px}
 html .hero-team .team-badge,html[data-theme=dark] .hero-team .team-badge{background:var(--team);border:2px solid #f3ead3;color:#f3ead3}
+
+/* ===== v1.3 World mode ===== */
+.world-note{font-size:12px;color:var(--muted);margin:-8px 0 14px;line-height:1.7}
+.world-tabs{margin-bottom:18px}
+.league-tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border:1.5px solid currentColor;border-radius:3px;letter-spacing:1px}
+.lg-mlb{color:#3a8ee6}.lg-npb{color:#e0607a}.lg-cpbl{color:#d9a400}
+html[data-theme=dark] .lg-mlb{color:#7fb6f2}html[data-theme=dark] .lg-npb{color:#f29aac}html[data-theme=dark] .lg-cpbl{color:#f2c14e}
+.world-strength{margin-bottom:20px}
+.strength-bars{display:grid;gap:12px;padding:18px 22px}
+.strength-bars>div{display:grid;grid-template-columns:90px minmax(0,1fr) 40px;gap:12px;align-items:center}
+.strength-bars strong{font-family:var(--num);font-size:20px;text-align:right}
+.strength-track{height:10px;background:var(--line);border-radius:2px;overflow:hidden}
+.strength-track i{display:block;height:100%;background:var(--green)}
+html[data-theme=dark] .strength-track i{background:#f2c14e}
