@@ -1,5 +1,5 @@
-import {LEAGUES,saveKey,loadLeague} from './leagues.js?v=09';
-import {gateEstimate,saveVersionSupported,missingSavePlayers,makeSeason,nextDay,resolveEvent,standings,autoLineup,availableLineup,chooseStarter,hasBat,hasPitch,batValue,pitchValue,teamOf,rosterFor,positionsOf,migrateSeason,setLineup,setPosition,assignFielding,salaryOf,payroll,remainingSalary,evaluateTrade,executeTrade,setTicketPrice,seasonGames,tradeDeadline,salaryFractionRemaining,dailySalary,EVENT_RATE,eventChoiceStatus,advanceSeason,seasonData,playerAge} from './engine.js?v=09';
+import {LEAGUES,saveKey,loadLeague} from './leagues.js?v=10';
+import {gateEstimate,saveVersionSupported,missingSavePlayers,makeSeason,nextDay,resolveEvent,standings,autoLineup,availableLineup,chooseStarter,hasBat,hasPitch,batValue,pitchValue,teamOf,rosterFor,positionsOf,migrateSeason,setLineup,setPosition,assignFielding,salaryOf,payroll,remainingSalary,evaluateTrade,executeTrade,setTicketPrice,seasonGames,tradeDeadline,salaryFractionRemaining,dailySalary,EVENT_RATE,eventChoiceStatus,advanceSeason,seasonData,playerAge} from './engine.js?v=10';
 const $=s=>document.querySelector(s);let KEY='dugout.save.v1';let baseData,data,state=null,page='dashboard',rosterTab='lineup',leaderTab='teams',busy=false,modal=null,selectedTeam='mlb:119',filter='',starter=null,saveError=false;let newsFilter='all',newsDay='all';
 let activeLeague='MLB';
 const leagueName=()=>LEAGUES[activeLeague].name;
