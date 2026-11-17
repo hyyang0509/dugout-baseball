@@ -98,3 +98,17 @@ PRD 沒有指定各項權重與資料不足政策，此版本將它們明確化�
 - **CPBL 在目前執行環境回傳 HTTP 404，無法以真實回應完成整條管線驗證，沒有產出假冒的 `roster_cpbl.json`。** 目前 CPBL 解析器僅通過合成 HTML 測試；官方網站若改成 JavaScript 載入、拆分表格或不同 DOM，需要先取得實際回應，再調整解析器。這部分不能視為已完成線上驗收。
 - CPBL 各類賽事的隔離依賴官方 `KindCode=A` 回應；需在能連線的環境確認該頁確實僅回傳一軍例行賽。尚未透過真實 HTML 驗證前，不建議將 CPBL 輸出當作已核對資料。
 - 新人沒有任何成績仍保留於名單、能力採中性值；若整個聯盟都沒有成績，則視為來源或解析異常並拒絕發布。
+
+
+## 日職／中職能力更新（`enrich_asia_ratings.py`）
+
+在既有 `dist/data/roster_npb.json`、`roster_cpbl.json` 上只更新能力、中職生日／投打及先發分工，不增刪球員、不改 ID，存檔維持相容。
+
+```bash
+python data_pipeline/enrich_asia_ratings.py            # 預設每次請求間隔 1.5 秒
+python data_pipeline/enrich_asia_ratings.py --leagues cpbl --refresh
+```
+
+- 只讀公開頁面：`npb.jp/bis/players/<id>.html`、`stats.cpbl.com.tw/players/<acnt>` 與 `/rankings`。**不呼叫 `/api/`**（中職 robots.txt 禁止）。
+- 頁面快取在 `.cache/asia`（已 gitignore），重跑不會重複抓取；`--refresh` 才重新下載。
+- 換算：日職以 2024–2026 一軍成績（5/4/3 加權）計算比率並在聯盟內標準化；中職使用官方百分位（一軍為主、二軍 −7 分）。依樣本數向平均回歸後，線性校準到 MLB 尺度。無資料者為 42±3 的估計值，`ratings_source` 標示 `estimate_*`。
