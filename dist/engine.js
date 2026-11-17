@@ -1,4 +1,6 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=11';
+export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
 export const VERSION=5;
 export const SEASON_GAMES=81;
 export const EVENT_RATE=.40;
@@ -230,7 +232,8 @@ export function findTradeProposal(s,data,fromTeam,opponent){
 export function makeEvent(s,data,forcedType=null){
  const own=rosterFor(s,data,s.teamId).filter(p=>!s.condition[p.id].injury);if(!own.length)return;
  const p=own[Math.floor(random(s)*own.length)],roll=random(s);
- const type=forcedType||(roll<.10?'injury':roll<.27?'training':roll<.51?'clubhouse':roll<.65?'offfield':roll<.85?'trade_offer':roll<.95?'league_trade':'team');
+ const type=forcedType||(roll<.08?'injury':roll<.50?'story':roll<.56?'training':roll<.66?'clubhouse':roll<.72?'offfield':roll<.90?'trade_offer':roll<.97?'league_trade':'team');
+ if(type==='story'){s.event=drawStory(s,data)||storyEvent(s,data,s.teamId,'clubhouse');return;}
  if(type==='trade_offer'||type==='league_trade'){
   const others=data.teams.filter(t=>t.id!==s.teamId),start=Math.floor(random(s)*others.length);
   for(let i=0;i<Math.min(5,others.length);i++){
@@ -282,7 +285,9 @@ export function nextDay(s,data,options={}){
  s.history.unshift(...results.map(({batters,pitchers,lineups,...rest})=>rest));s.history=s.history.slice(0,180);
  if(s.phase!=='finished'){
   for(const p of rosterFor(s,data,s.teamId)){if(!s.condition[p.id].formDays&&random(s)<.025){s.condition[p.id].form=random(s)<.5?-1:1;s.condition[p.id].formDays=3+Math.floor(random(s)*3);}}
-  if(random(s)<EVENT_RATE){makeEvent(s,data);if(s.event)publishEvent(s,s.event);}
+  const due=dueStory(s,data);
+  if(due){s.event=due;publishEvent(s,due);}
+  else if(random(s)<EVENT_RATE){makeEvent(s,data);if(s.event)publishEvent(s,s.event);}
   if(random(s)<.55){const clubs=data.teams.filter(t=>t.id!==s.teamId),id=clubs[Math.floor(random(s)*clubs.length)].id;const r=random(s);const e=storyEvent(s,data,id,r<.25?'injury':r<.85?'clubhouse':'offfield');if(e?.type==='clubhouse'){const available=e.options.map((o,i)=>i).filter(i=>eventChoiceStatus(s,data,e,i).ok),choice=available[Math.floor(random(s)*available.length)];applyClubhouseChoice(s,data,e,choice);e.text+=` 球團處理：${e.choices[choice]}。${e.options[choice].description}`;}publishEvent(s,e);}
  }
  recordDailyNews(s,data,results);
@@ -318,6 +323,7 @@ export function migrateSeason(s,data){
  s.salaryPlan??={start:0,end:seasonGames(s),fraction:1};
  initializeNews(s,data);
  if(s.event?.type==='clubhouse'&&s.event.scenario&&!s.event.options)designClubhouseChoices(s.event,data);
+ s.storyQueue??=[];s.storyRecent??=[];s.storyFlags??={};
  s.version=VERSION;s.ownership??={};s.tradeLog??=[];s.finance??={};
  for(const t of data.teams){
   const club=s.teams[t.id],roster=rosterFor(s,data,t.id);club.morale??=50;club.fielding??=assignFielding(club.lineup,data)||{};
@@ -457,9 +463,16 @@ function designClubhouseChoices(e,data){
  bus:[option('讓問答繼續，大家一起參與',7,-6,both(0,1,2)),option('改成戰術問答，由教練帶討論',3,-9,[player(p,0,1,4)]),option('結束活動，把車程留給睡眠',-3,12)]
  };
  const options=catalog[e.scenario];if(!options)return e;
- const signed=n=>(n>0?'+':'−')+Math.abs(n);
- for(const o of options){const parts=[`球隊氣氛 ${signed(o.morale)}`];if(o.teamEnergy)parts.push(`全隊體力 ${signed(o.teamEnergy)}`);for(const x of o.players){if(x.energy)parts.push(`${name(x.id)} 體力 ${signed(x.energy)}`);if(x.form)parts.push(`${name(x.id)} ${x.form>0?'火熱':'低潮'} ${x.days} 日`);}if(o.cost)parts.push(`支出 US$${o.cost.toLocaleString('en-US')}`);o.description=parts.join('；');}
- e.options=options;e.choices=options.map(o=>o.label);return e;
+ e.options=options;describeOptions(e,data);e.choices=options.map(o=>o.label);return e;
+}
+function describeOptions(e,data){
+ const name=id=>data.players.find(p=>p.id===id)?.name||'球員',signed=n=>(n>0?'+':'−')+Math.abs(n);
+ for(const o of e.options){const parts=[];if(o.morale||!o.players?.length&&!o.teamEnergy&&!o.cost&&!o.income)parts.push(`球隊氣氛 ${signed(o.morale||0)}`);if(o.teamEnergy)parts.push(`全隊體力 ${signed(o.teamEnergy)}`);
+  for(const x of o.players){if(x.injury)parts.push(`${name(x.id)} 休養 ${x.injury} 日`);if(x.energy)parts.push(`${name(x.id)} 體力 ${signed(x.energy)}`);if(x.form)parts.push(`${name(x.id)} ${x.form>0?'火熱':'低潮'} ${x.days} 日`);}
+  if(o.cost)parts.push(`支出 US$${o.cost.toLocaleString('en-US')}`);if(o.income)parts.push(`收入 US$${o.income.toLocaleString('en-US')}`);
+  if(o.follow)parts.push('之後可能有後續發展');if(o.note)parts.push(o.note);
+  o.description=parts.join('；');}
+ return e;
 }
 export function eventChoiceStatus(s,data,e,index){
  const o=e?.options?.[index];if(!o)return {ok:true};const teamId=e.teamId||s.teamId;
@@ -473,7 +486,51 @@ function applyClubhouseChoice(s,data,e,index){
  for(const p of rosterFor(s,data,teamId)){const c=s.condition[p.id];c.energy=clamp(c.energy+o.teamEnergy,0,100);}
  for(const x of o.players){const c=s.condition[x.id];c.energy=clamp(c.energy+x.energy,0,100);if(x.form){c.form=x.form;c.formDays=x.days+1;}}
  if(o.cost){const f=s.finance[teamId];f.cash-=o.cost;f.operatingCost+=o.cost;f.ledger.unshift({day:s.day,type:'clubhouse',label:e.choices[index],income:0,salary:0,cost:o.cost,attendance:0,net:-o.cost});f.ledger=f.ledger.slice(0,90);}
+ // Story extras: injuries only when the roster stays legal, income, follow-up chains, flags.
+ for(const x of o.players){if(!x.injury)continue;const c=s.condition[x.id],remaining=rosterFor(s,data,teamId).filter(p=>p.id!==x.id&&!s.condition[p.id].injury);
+  if(assignFielding(remaining.filter(hasBat).map(p=>p.id),data)&&remaining.some(hasPitch))c.injury=Math.max(c.injury||0,x.injury);else c.energy=clamp(c.energy+10,0,100);}
+ if(o.income){const f=s.finance[teamId];f.cash+=o.income;f.income+=o.income;f.ledger.unshift({day:s.day,type:'story',label:e.choices[index],income:o.income,salary:0,cost:0,attendance:0,net:o.income});f.ledger=f.ledger.slice(0,90);}
+ if(o.follow&&teamId===s.teamId)s.storyQueue=[...(s.storyQueue||[]),{id:o.follow.id,day:s.day+o.follow.in,cast:e.cast||{}}];
+ if(o.flag)s.storyFlags={...(s.storyFlags||{}),[o.flag]:s.day};
 }
+
+// ---- Story deck: context-weighted, rarity-tiered events with follow-up chains.
+export function playerTraits(s,p){return traitsOf(p,p.birth_date?playerAge(s,p):null);}
+function storyContext(s,data,teamId){
+ const roster=rosterFor(s,data,teamId).filter(p=>!s.condition[p.id].injury);
+ let streak=0;for(const g of s.history){if(g.away!==teamId&&g.home!==teamId)continue;const won=g.winner===teamId;if(!streak)streak=won?1:-1;else if(won===(streak>0))streak+=won?1:-1;else break;}
+ const club=s.teams[teamId];
+ return {roster,streak,rank:standings(s).findIndex(([id])=>id===teamId)+1,teams:data.teams.length,day:s.day,games:club.w+club.l,cash:s.finance[teamId]?.cash||0,morale:club.morale??50,flags:s.storyFlags||{},
+  random:()=>random(s),pick:list=>list&&list.length?list[Math.floor(random(s)*list.length)]:null,name:id=>data.players.find(p=>p.id===id)?.name||'球員',
+  traits:p=>playerTraits(s,p),age:p=>playerAge(s,p),form:p=>s.condition[p.id]?.form||0,energy:p=>s.condition[p.id]?.energy??100};
+}
+function buildStory(s,data,tpl,cast,teamId=s.teamId){
+ const c=storyContext(s,data,teamId);cast=cast||(tpl.cast?tpl.cast(c):{});
+ if(!cast||Object.values(cast).some(p=>!p))return null;
+ const built=tpl.build(c,cast);if(!built?.options?.length)return null;
+ const ids=[...new Set(Object.values(cast).map(p=>p.id))];
+ const e={type:'clubhouse',story:tpl.id,rarity:tpl.rarity,teamId,player:ids[0]||null,participants:ids,cast:Object.fromEntries(Object.entries(cast).map(([k,p])=>[k,p.id])),title:built.title,text:built.text,options:built.options};
+ describeOptions(e,data);e.choices=e.options.map(o=>o.label);return e;
+}
+function drawStory(s,data){
+ const c=storyContext(s,data,s.teamId);if(!c.roster.length)return null;
+ const recent=new Set(s.storyRecent||[]);
+ const pool=STORIES.filter(t=>!t.followOnly&&!recent.has(t.id)).map(t=>({t,w:(t.weight?t.weight(c):1)*RARITY_WEIGHT[t.rarity]})).filter(x=>x.w>0);
+ for(let tries=0;tries<4&&pool.length;tries++){
+  const total=pool.reduce((a,x)=>a+x.w,0);let r=random(s)*total,i=0;for(;i<pool.length-1;i++){r-=pool[i].w;if(r<=0)break;}
+  const e=buildStory(s,data,pool[i].t,null);if(e){s.storyRecent=[pool[i].t.id,...(s.storyRecent||[])].slice(0,12);return e;}pool.splice(i,1);
+ }
+ return null;
+}
+function dueStory(s,data){
+ const queue=s.storyQueue||[],i=queue.findIndex(x=>x.day<=s.day);if(i<0)return null;
+ const [item]=queue.splice(i,1),tpl=STORY_BY_ID[item.id];if(!tpl)return null;
+ const roster=rosterFor(s,data,s.teamId),cast={};
+ for(const [k,id] of Object.entries(item.cast||{})){const p=roster.find(p=>p.id===id);if(!p)return null;cast[k]=p;}
+ const e=buildStory(s,data,tpl,cast);if(e)e.chain=true;return e;
+}
+// Deterministic entry point for content checks.
+export function makeStory(s,data,id,cast){const tpl=STORY_BY_ID[id];return tpl?buildStory(s,data,tpl,cast||null):null;}
 
 // Franchise continuity. The base snapshot stays immutable; evolving rosters
 // are saved with the franchise and rehydrated before loading player IDs.
