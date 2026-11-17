@@ -182,3 +182,22 @@ html[data-theme=dark] .lg-mlb{color:#7fb6f2}html[data-theme=dark] .lg-npb{color:
 .strength-track{height:10px;background:var(--line);border-radius:2px;overflow:hidden}
 .strength-track i{display:block;height:100%;background:var(--green)}
 html[data-theme=dark] .strength-track i{background:#f2c14e}
+
+/* ===== v1.4 Offseason market ===== */
+.fa-toggle{display:inline-flex;border:2px solid var(--line);border-radius:3px;overflow:hidden}
+.fa-toggle button{border:0;background:none;padding:8px 14px;min-height:40px;font-size:12px;color:var(--muted)}
+.fa-toggle button.active{background:var(--green);color:var(--paper);font-weight:700}
+html[data-theme=dark] .fa-toggle button.active{background:#f2c14e;color:#07201a}
+.fa-filters{margin:0 18px;padding-top:6px}
+.fa-bid-cell{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:12px}
+.small-btn{min-height:36px;padding:6px 14px}
+.bid-chance{font-weight:700;margin:14px 0 4px}
+.bid-chance.high{color:#4f9a5a}.bid-chance.mid{color:#c28b00}.bid-chance.low{color:#c0563f}
+html[data-theme=dark] .bid-chance.high{color:#8fd19a}html[data-theme=dark] .bid-chance.mid{color:#f2c14e}html[data-theme=dark] .bid-chance.low{color:#f29a85}
+.form-error{color:#c0563f;font-size:12px;min-height:1em}
+html[data-theme=dark] .form-error{color:#f29a85}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
+.contract-line{margin:6px 0 0}
+.bid-form{display:grid;gap:8px;margin:16px 0 4px}
+.bid-form label{font-size:12px;color:var(--muted)}
+.bid-form input,.bid-form select{width:100%;min-height:44px;padding:8px 12px;border:2px solid var(--line);border-radius:3px;background:var(--paper);color:var(--ink);font-size:15px}

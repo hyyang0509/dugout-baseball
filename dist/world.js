@@ -1,7 +1,7 @@
 // World mode: MLB, NPB and CPBL run side by side in one save, on one rating scale.
 // Each league keeps its own season state (schedule, standings, playoffs); the user
 // manages one club and the other two leagues are fully simulated by the AI.
-import {makeSeason, nextDay, advanceSeason, seasonData, migrateSeason, standings, overall, hasBat, hasPitch, teamOf, addNews, clamp, VERSION} from './engine.js?v=14';
+import {makeSeason, nextDay, seasonData, migrateSeason, standings, overall, hasBat, hasPitch, teamOf, addNews, VERSION, LEAGUE_SCALE, worldRating} from './engine.js?v=15';
 
 export const WORLD_VERSION = 1;
 export const WORLD_KEY = 'dugout.world.v1';
@@ -9,33 +9,36 @@ export const LEAGUE_ORDER = ['MLB', 'NPB', 'CPBL'];
 export const LEAGUE_NAME = {MLB: '美國職棒', NPB: '日本職棒', CPBL: '中華職棒'};
 export const LEAGUE_SHORT = {MLB: '美職', NPB: '日職', CPBL: '中職'};
 
-// Realistic strength gap: every league's source ratings are centred near 49 within
-// that league. On the shared world scale NPB sits roughly a level below MLB and
-// CPBL another level below NPB, with a slightly narrower spread.
-export const LEAGUE_SCALE = {
-  MLB: {shift: 0, spread: 1},
-  NPB: {shift: -8, spread: 0.92},
-  CPBL: {shift: -15, spread: 0.85},
-};
-const SKILL_KEYS = ['contact', 'power', 'eye', 'stuff', 'control', 'movement'];
-const ATHLETIC_KEYS = ['speed', 'defense'];
+// Realistic strength gap (LEAGUE_SCALE lives in the engine): NPB sits roughly a level
+// below MLB and CPBL another level below NPB, with a slightly narrower spread.
+export {LEAGUE_SCALE, worldRating};
 
-export function worldRating(league, key, value) {
-  const k = LEAGUE_SCALE[league] || LEAGUE_SCALE.MLB;
-  if (SKILL_KEYS.includes(key)) return clamp(Math.round(49 + (value - 49) * k.spread + k.shift), 20, 80);
-  if (ATHLETIC_KEYS.includes(key)) return clamp(Math.round(value + k.shift / 2), 20, 80);
-  return value; // stamina describes role and workload, not league quality
+// Where a player comes from decides who counts as a foreign player (洋將) and which
+// league feels like home in free agency. JPN -> NPB, TWN -> CPBL, everyone else -> MLB.
+const MLB_JPN = new Set(['Shohei Ohtani', 'Yoshinobu Yamamoto', 'Kodai Senga', 'Masataka Yoshida', 'Yusei Kikuchi', 'Roki Sasaki', 'Kazuma Okamoto', 'Munetaka Murakami', 'Tatsuya Imai', 'Yu Darvish', 'Shota Imanaga', 'Seiya Suzuki']);
+const MLB_TWN = new Set(['Tsung-Che Cheng']);
+const CPBL_JPN = new Set(['京山將彌', '大瀧幸治', '髙塩將樹', '鈴木駿輔', '榊原元稀', '永田颯太郎']);
+const CPBL_INTL = new Set(['勝騎士', '布雷克', '德保拉', '銳力獅', '鋼龍', '後勁', '魔力藍', '威能帝', '魔鷹', '魔神龍', '菲力士', '坎南', '獅帝芬', '威戈神', '魔爾曼', '瑪帝斯', '道威聖', '威克', '杰克', '悍里歐', '泰威', '威鳳山']);
+export const HOME_LEAGUE = {JPN: 'NPB', TWN: 'CPBL', INTL: 'MLB'};
+export function originOf(league, p) {
+  if (p.origin) return p.origin;
+  if (league === 'NPB') return /[\u30a0-\u30ff]/.test(p.source_name || '') ? 'INTL' : 'JPN';
+  if (league === 'CPBL') return CPBL_JPN.has(p.name) ? 'JPN' : CPBL_INTL.has(p.name) ? 'INTL' : 'TWN';
+  return MLB_JPN.has(p.name) ? 'JPN' : MLB_TWN.has(p.name) ? 'TWN' : 'INTL';
 }
+export const isForeign = (p, league) => league !== 'MLB' && HOME_LEAGUE[p.origin || 'INTL'] !== league;
 
 /** Converts one league's roster file to the world scale (pure; returns a new object). */
 export function toWorldScale(league, data) {
   return {
     ...data,
     league,
+    world: true,
     teams: data.teams.map(t => ({...t, league})),
     players: data.players.map(p => ({
       ...p,
       league,
+      origin: originOf(league, p),
       ratings: Object.fromEntries(Object.entries(p.ratings).map(([key, v]) => [key, worldRating(league, key, v)])),
     })),
   };
@@ -51,9 +54,27 @@ export function makeWorld(bases, userLeague, teamId, seed = Date.now()) {
   LEAGUE_ORDER.forEach((id, i) => {
     const s = makeSeason(bases[id], id === userLeague ? teamId : null, ((seed >>> 0) + i * 7919) >>> 0);
     if (id !== userLeague) s.aiOnly = true;
+    ensureContracts(s, bases[id]);
     leagues[id] = s;
   });
   return {kind: 'world', worldVersion: WORLD_VERSION, userLeague, teamId, year: leagues[userLeague].year, leagues, digest: [], createdAt: new Date().toISOString()};
+}
+
+// Contracts: years left including the current season (1 = expires after this season).
+function idHash(text) {
+  let h = 2166136261;
+  for (const ch of String(text)) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); }
+  return (h >>> 0) / 4294967296;
+}
+export function initialContractYears(p, year) {
+  const age = year - Number(p.birth_date?.slice(0, 4) || 1998), r = idHash(p.id + ':' + year);
+  const span = age <= 24 ? 3 : age <= 30 ? 5 : age <= 33 ? 3 : 2;
+  return 1 + Math.floor(r * span);
+}
+export function ensureContracts(s, data) {
+  s.contracts ??= {};
+  for (const p of data.players) s.contracts[p.id] ??= initialContractYears(p, s.year || 2026);
+  return s.contracts;
 }
 
 export function worldDatas(w, bases) {
@@ -61,14 +82,14 @@ export function worldDatas(w, bases) {
 }
 
 // AI leagues keep a short memory so the save stays well inside browser storage limits.
-function trimAI(s) {
+export function trimAI(s) {
   s.history = s.history.slice(0, 30);
   if (Array.isArray(s.news)) s.news = s.news.slice(0, 60);
   s.lastGame = null;
   s.eventLog = (s.eventLog || []).slice(0, 10);
 }
 
-function digestAI(w, id, before, s, datas) {
+export function digestAI(w, id, before, s, datas) {
   const name = tid => datas[id].teams.find(t => t.id === tid)?.zh || tid;
   const user = userSeason(w);
   if (before.phase === 'regular' && s.phase === 'playoffs') {
@@ -135,25 +156,6 @@ export function finishWorld(w, datas, maxDays = 400) {
   return w;
 }
 
-/** Rolls the whole world into the next year. Works on a clone; the input stays intact. */
-export function advanceWorld(previous, bases) {
-  const w = structuredClone(previous);
-  if (userSeason(w).phase !== 'finished') throw new Error('請先完成本季冠軍賽，再進入下一季。');
-  finishWorld(w, worldDatas(w, bases));
-  const leagues = {};
-  for (const id of LEAGUE_ORDER) {
-    const next = advanceSeason(w.leagues[id], bases[id]);
-    if (id !== w.userLeague) { next.aiOnly = true; trimAI(next); }
-    leagues[id] = next;
-  }
-  const out = {...w, leagues, year: leagues[w.userLeague].year};
-  for (const id of LEAGUE_ORDER) if (id !== w.userLeague) {
-    const c = w.digest.find(d => d.league === id && d.year === w.year);
-    if (c) addNews(leagues[w.userLeague], {category: 'world', teamIds: [], title: `${LEAGUE_NAME[id]}上季冠軍：${bases[id].teams.find(t => t.id === c.champion)?.zh || ''}`, text: `${out.year} 年${LEAGUE_NAME[id]}開季，衛冕軍是 ${bases[id].teams.find(t => t.id === c.champion)?.zh || ''}。`});
-  }
-  return out;
-}
-
 /** Validates and migrates a parsed save. Throws with a readable message when unusable. */
 export function restoreWorld(parsed, bases) {
   if (parsed?.kind !== 'world' || parsed.worldVersion !== WORLD_VERSION || !LEAGUE_ORDER.includes(parsed.userLeague)) throw new Error('存檔格式不符');
@@ -161,7 +163,10 @@ export function restoreWorld(parsed, bases) {
     const s = parsed.leagues?.[id];
     if (!s || !Array.isArray(s.schedule) || !s.teams || !s.condition || !['regular', 'playoffs', 'finished'].includes(s.phase)) throw new Error('存檔格式不符');
     for (const t of bases[id].teams) if (!s.teams[t.id]) throw new Error('球隊名單格式不符');
+    for (const p of s.playerPool || []) { p.league ??= id; p.origin ??= originOf(id, p); }
+    s.world = true;
     migrateSeason(s, seasonData(bases[id], s));
+    ensureContracts(s, seasonData(bases[id], s));
     if (id !== parsed.userLeague) s.aiOnly = true;
   }
   if (!parsed.leagues[parsed.userLeague].teams[parsed.teamId]) throw new Error('存檔格式不符');
