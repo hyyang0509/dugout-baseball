@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import * as W from '../dist/world.js';
+import * as O from '../dist/offseason.js';
 import {resolveEvent, overall} from '../dist/engine.js';
 
 const raw = id => JSON.parse(fs.readFileSync(new URL(`../dist/data/roster_${id.toLowerCase()}.json`, import.meta.url), 'utf8'));
@@ -46,5 +47,5 @@ test('world saves restore, rank players across leagues, and roll into a new year
   assert.ok(top[0].ovr >= top[9].ovr);
   const str = W.leagueStrength(w, W.worldDatas(w, bases));
   assert.ok(str.MLB > str.NPB && str.NPB > str.CPBL, JSON.stringify(str));
-  assert.throws(() => W.advanceWorld(w, bases), /冠軍賽/);
+  assert.throws(() => O.startOffseason(w, bases), /冠軍賽/);
 });

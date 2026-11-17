@@ -1,5 +1,5 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=14';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=15';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
 export const VERSION=5;
 export const SEASON_GAMES=81;
@@ -84,7 +84,7 @@ export function makeSeason(data,teamId,seed=Date.now()){
  for(const p of data.players)condition[p.id]={energy:100,injury:0,form:0,formDays:0};
  for(const t of data.teams){const roster=data.players.filter(p=>p.team_id===t.id);const pitchers=roster.filter(hasPitch).sort((a,b)=>(b.role==='SP')-(a.role==='SP')||pitchValue(b)-pitchValue(a));
  teams[t.id]={w:0,l:0,rs:0,ra:0,lineup:autoLineup(roster),rotation:pitchers.slice(0,5).map(p=>p.id)};}
- return migrateSeason({league:data.league||'MLB',version:VERSION,dataVersion:data.generated_at,teamId,rng:(seed>>>0)||1234567,day:0,phase:'regular',schedule:makeSchedule(data.teams.map(t=>t.id)),teams,condition,batting:{},pitching:{},history:[],lastGame:null,event:null,eventLog:[],playoffs:null,champion:null,createdAt:new Date().toISOString()},data);
+ return migrateSeason({league:data.league||'MLB',...(data.world?{world:true}:{}),version:VERSION,dataVersion:data.generated_at,teamId,rng:(seed>>>0)||1234567,day:0,phase:'regular',schedule:makeSchedule(data.teams.map(t=>t.id)),teams,condition,batting:{},pitching:{},history:[],lastGame:null,event:null,eventLog:[],playoffs:null,champion:null,createdAt:new Date().toISOString()},data);
 }
 function batting(s,id){return s.batting[id]??=( {g:0,pa:0,ab:0,h:0,hr:0,rbi:0,bb:0,k:0,r:0});}
 function pitching(s,id){return s.pitching[id]??=({g:0,outs:0,h:0,r:0,bb:0,k:0,pitches:0});}
@@ -305,7 +305,15 @@ export function nextDay(s,data,options={}){
 }
 
 // Fictional contracts and finances. USD; one contract covers the current season.
-export function salaryOf(p){const value=hasPitch(p)&&!hasBat(p)?pitchValue(p):Math.max(hasBat(p)?batValue(p):0,hasPitch(p)?pitchValue(p):0);return Math.round((250000+Math.pow(Math.max(0,value-40),2)*15000+(p.role==='SP'?350000:0))/50000)*50000;}
+// World mode: each league pays on its own scale (NPB about 30% of MLB, CPBL about 8%).
+export const LEAGUE_PAY={MLB:1,NPB:.3,CPBL:.08};
+// Club revenue and running costs follow the same league scale (only in world mode, where players carry a league).
+export const moneyScale=s=>s?.world?(LEAGUE_PAY[s.league]??1):1;
+export const LEAGUE_SCALE={MLB:{shift:0,spread:1},NPB:{shift:-8,spread:.92},CPBL:{shift:-15,spread:.85}};
+const SKILL_KEYS=['contact','power','eye','stuff','control','movement'],ATHLETIC_KEYS=['speed','defense'];
+export function worldRating(league,key,value){const k=LEAGUE_SCALE[league]||LEAGUE_SCALE.MLB;if(SKILL_KEYS.includes(key))return clamp(Math.round(49+(value-49)*k.spread+k.shift),20,80);if(ATHLETIC_KEYS.includes(key))return clamp(Math.round(value+k.shift/2),20,80);return value;}
+export function marketSalary(p){const value=hasPitch(p)&&!hasBat(p)?pitchValue(p):Math.max(hasBat(p)?batValue(p):0,hasPitch(p)?pitchValue(p):0);return Math.round((250000+Math.pow(Math.max(0,value-40),2)*15000+(p.role==='SP'?350000:0))/50000)*50000;}
+export function salaryOf(p){const pay=LEAGUE_PAY[p.league]??1;const base=marketSalary(p);return pay===1?base:Math.max(30000,Math.round(base*pay/10000)*10000);}
 export function payroll(s,data,teamId){return rosterFor(s,data,teamId).reduce((sum,p)=>sum+salaryOf(p),0);}
 export function salaryFractionRemaining(s){const plan=s.salaryPlan||{start:0,end:seasonGames(s),fraction:1};return Math.max(0,plan.fraction*(plan.end-s.day)/Math.max(1,plan.end-plan.start));}
 export function dailySalary(s,data,teamId){const plan=s.salaryPlan;return Math.round(payroll(s,data,teamId)*(plan?plan.fraction/Math.max(1,plan.end-plan.start):1/seasonGames(s)));}
@@ -337,7 +345,7 @@ export function migrateSeason(s,data){
  s.version=VERSION;s.ownership??={};s.tradeLog??=[];s.finance??={};
  for(const t of data.teams){
   const club=s.teams[t.id],roster=rosterFor(s,data,t.id);club.morale??=50;club.fielding??=assignFielding(club.lineup,data)||{};
-  if(!s.finance[t.id]){const wages=payroll(s,data,t.id),remaining=remainingSalary(s,data,t.id);const opening=Math.ceil(remaining+20000000);s.finance[t.id]={cash:opening,openingCash:opening,budget:Math.ceil((wages*1.18+3000000)/1000000)*1000000,ticketPrice:35,income:0,salaryCost:0,operatingCost:0,tradeCash:0,ledger:[],sinceDay:s.day};}
+  if(!s.finance[t.id]){const wages=payroll(s,data,t.id),remaining=remainingSalary(s,data,t.id);const opening=Math.ceil(remaining+20000000*moneyScale(s));s.finance[t.id]={cash:opening,openingCash:opening,budget:Math.ceil((wages*1.18+3000000*moneyScale(s))/100000)*100000,ticketPrice:35,income:0,salaryCost:0,operatingCost:0,tradeCash:0,ledger:[],sinceDay:s.day};}
   club.rotation=club.rotation.filter(id=>roster.some(p=>p.id===id&&hasPitch(p)));
  }
  for(const p of data.players){s.condition[p.id]??={energy:100,injury:0,form:0,formDays:0};if(s.condition[p.id].lastPlayed==null&&s.day>0)s.condition[p.id].lastPlayed=s.day-1;}
@@ -348,7 +356,7 @@ export function migrateSeason(s,data){
 function settleDay(s,data,games){
  const date=s.day;const byTeam=new Map();for(const g of games){byTeam.set(g.away,{g,home:false});byTeam.set(g.home,{g,home:true});}
  for(const t of data.teams){const f=s.finance[t.id],match=byTeam.get(t.id);const wage=date<=seasonGames(s)?dailySalary(s,data,t.id):0;let income=0,cost=0,attendance=0;
-  if(match){const standing=s.teams[t.id],win=standing.w/(standing.w+standing.l||1);attendance=match.home?homeAttendance(fanWinPct(standing),f.ticketPrice):0;income=150000+attendance*(f.ticketPrice+12);cost=match.home?180000:75000;}
+  if(match){const standing=s.teams[t.id],win=standing.w/(standing.w+standing.l||1);attendance=match.home?homeAttendance(fanWinPct(standing),f.ticketPrice):0;const m=moneyScale(s);income=Math.round((150000+attendance*(f.ticketPrice+12))*m);cost=Math.round((match.home?180000:75000)*m);}
   f.cash+=income-wage-cost;f.income+=income;f.salaryCost+=wage;f.operatingCost+=cost;
   f.ledger.unshift({day:date,type:'operations',label:match?(match.home?'主場賽事':'客場賽事'):'休賽日',income,salary:wage,cost,attendance,net:income-wage-cost});f.ledger=f.ledger.slice(0,90);
  }
@@ -359,7 +367,7 @@ export const STADIUM_CAPACITY=45000,CONCESSION_PER_FAN=12;
 export function homeAttendance(win,price){const w=clamp(Number.isFinite(win)?win:.5,0,1),base=24000+w*16000,elasticity=40+w*20;return Math.round(clamp(base*Math.exp(-(price-35)/elasticity),3000,STADIUM_CAPACITY));}
 // Fans judge the club on a smoothed record (10-10 prior) so one early loss does not empty the stadium.
 export function fanWinPct(t){return ((t?.w||0)+10)/((t?.w||0)+(t?.l||0)+20);}
-export function gateEstimate(s,teamId,price){const fans=homeAttendance(fanWinPct(s.teams[teamId]),price);return {attendance:fans,gate:fans*(price+CONCESSION_PER_FAN)};}
+export function gateEstimate(s,teamId,price){const fans=homeAttendance(fanWinPct(s.teams[teamId]),price);return {attendance:fans,gate:Math.round(fans*(price+CONCESSION_PER_FAN)*moneyScale(s))};}
 export function setTicketPrice(s,teamId,price){if(!Number.isInteger(price)||price<15||price>80)throw new Error('票價需介於 US$15–80。');s.finance[teamId].ticketPrice=price;}
 // ---- Front-office strategies: each AI club values players differently.
 export const STRATEGY_LABEL={contender:'爭冠',rebuilding:'重建',balanced:'觀望'};
@@ -616,14 +624,16 @@ export const playerAge=(s,p)=>(s.year||2026)-Number(p.birth_date?.slice(0,4)||19
 export function seasonData(base,s){return s?.playerPool?{...base,players:s.playerPool}:base;}
 export const overall=p=>Math.max(hasBat(p)?batValue(p):0,hasPitch(p)?pitchValue(p):0);
 function rookie(s,template,teamId,year,serial){
- const pick=xs=>xs[Math.floor(random(s)*xs.length)];
- const surname=pick(['林','陳','吳','張','黃','李','王','劉','楊','周','許','郭','蔡','鄭','謝','江']);
- const first=pick(['宇','柏','承','子','昱','宥','俊','奕','澤','冠','哲','以','景','恩','睿','曜']);
- const last=pick(['安','翔','恩','辰','廷','豪','宇','軒','凱','宏','霖','佑','睿','衡','翰','傑']);
+ const pick=xs=>xs[Math.floor(random(s)*xs.length)];const league=template.league;
+ let name;
+ if(league==='NPB')name=pick(['佐藤','鈴木','高橋','田中','伊藤','渡邊','山本','中村','小林','加藤','吉田','山田','佐佐木','山口','松本','井上','木村','清水'])+pick(['翔太','大輝','拓海','健太','蓮','悠真','陽斗','湊','颯太','優斗','大和','隼人','航','健斗','涼介','直樹']);
+ else if(league==='MLB')name=pick(['Jake','Tyler','Mason','Ethan','Logan','Ryan','Caleb','Owen','Luis','Carlos','Diego','José','Brandon','Austin','Cole','Hunter'])+' '+pick(['Miller','Johnson','Davis','Garcia','Rodriguez','Martinez','Wilson','Anderson','Thomas','Moore','Hernandez','Lopez','Clark','Lewis','Walker','Young']);
+ else name=pick(['林','陳','吳','張','黃','李','王','劉','楊','周','許','郭','蔡','鄭','謝','江'])+pick(['宇','柏','承','子','昱','宥','俊','奕','澤','冠','哲','以','景','恩','睿','曜'])+pick(['安','翔','恩','辰','廷','豪','宇','軒','凱','宏','霖','佑','睿','衡','翰','傑']);
  const age=18+Math.floor(random(s)*5),ratings={};
- for(const key of Object.keys(template.ratings))ratings[key]=clamp(36+Math.floor(random(s)*17),20,80);
+ // Rookie ratings are drawn on the league's own scale, then put on the world scale.
+ for(const key of Object.keys(template.ratings)){const v=clamp(36+Math.floor(random(s)*17),20,80);ratings[key]=league?worldRating(league,key,v):v;}
  const id=`sim:${year}:${teamId}:${serial}`;
- return {id,name:`${surname}${first}${last}（虛構新人）`,team_id:teamId,position:template.position,positions:[...positionsOf(template)],role:template.role,ratings,birth_date:`${year-age}-07-01`,bats:template.bats||'R',throws:template.throws||'R',jersey_number:String(10+Math.floor(random(s)*80)),status:'Active',simulated:true,rookieYear:year,developmentPotential:56+Math.floor(random(s)*20)};
+ return {id,name:`${name}（虛構新人）`,team_id:teamId,...(league?{league,origin:{NPB:'JPN',CPBL:'TWN'}[league]||'INTL'}:{}),position:template.position,positions:[...positionsOf(template)],role:template.role,ratings,birth_date:`${year-age}-07-01`,bats:template.bats||'R',throws:template.throws||'R',jersey_number:String(10+Math.floor(random(s)*80)),status:'Active',simulated:true,rookieYear:year,developmentPotential:league?worldRating(league,'contact',56+Math.floor(random(s)*20)):56+Math.floor(random(s)*20)};
 }
 export function advanceSeason(previous,base){
  if(previous.phase!=='finished'||!previous.champion)throw new Error('請先完成本季冠軍賽，再進入下一季。');
@@ -661,7 +671,7 @@ export function advanceSeason(previous,base){
  const leaders=Object.entries(old.batting).filter(([id])=>data.players.some(p=>p.id===id)).sort((a,b)=>b[1].hr-a[1].hr).slice(0,5).map(([id,stats])=>({id,name:data.players.find(p=>p.id===id).name,hr:stats.hr,avg:stats.ab?Number((stats.h/stats.ab).toFixed(3)):0}));
  if(old.teamId)next.career=[...(old.career||[]),{year:old.year||2026,champion:old.champion,teamId:old.teamId,rank,record:{w:old.teams[old.teamId].w,l:old.teams[old.teamId].l},games:seasonGames(old),standings:ranked.map(([id,t])=>({id,w:t.w,l:t.l,rs:t.rs,ra:t.ra})),leaders,endingCash:old.finance[old.teamId].cash}];
  for(const t of base.teams){
-  const f=next.finance[t.id],previousCash=old.finance[t.id].cash,wages=payroll(next,nextData,t.id),grant=Math.max(0,Math.ceil(wages+20000000-previousCash));
+  const f=next.finance[t.id],previousCash=old.finance[t.id].cash,wages=payroll(next,nextData,t.id),grant=Math.max(0,Math.ceil(wages+20000000*moneyScale(next)-previousCash));
   f.openingCash=previousCash;f.cash=previousCash+grant;f.income=grant;f.ticketPrice=old.finance[t.id].ticketPrice;f.ledger=[{day:0,type:'funding',label:`${year} 球季董事會補助`,income:grant,salary:0,cost:0,attendance:0,net:grant}];
  }
  next.offseason={from:old.year||2026,to:year,changes,retirees,newcomers};
