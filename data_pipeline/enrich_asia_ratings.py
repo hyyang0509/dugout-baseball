@@ -420,7 +420,7 @@ def main(argv=None):
 
     for lg, doc in docs.items():
         tmp = DATA / f'roster_{lg}.json.tmp'
-        tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
         tmp.replace(DATA / f'roster_{lg}.json')
         print('wrote', lg)
 
