@@ -9,7 +9,7 @@
 - KEY：dugout.save.v1；engine VERSION=5。
 - year/career/playerPool/offseason 保存年度演化；讀取時先 seasonData(base,save)，再 migrateSeason。
 - advanceSeason 克隆舊存檔後演化。重新開局必須使用獨立的 baseData 初始名單。
-- 每場開賽前雙方自動重排九人打線，守位必須完整且不重複。
+- 電腦球隊每場開賽前自動重排九人打線；玩家球隊預設自動，手動調整後（`state.manualLineup`）改用玩家打線，僅替補傷兵與疲勞球員。守位必須完整且不重複。
 - 引擎使用種子 RNG，不改為 Math.random。
 - 財務均為遊戲美元，現金與收支帳必須對帳。
 - 換季/重新開局儲存失敗時回復原狀態。

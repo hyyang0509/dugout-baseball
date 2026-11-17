@@ -133,7 +133,7 @@ export function chooseStarter(s,data,teamId,preferred=null){
 function adjusted(s,p,key){const c=s.condition[p.id];return (p.ratings[key]||50)*(1+c.form*.09)*(c.energy<35?.86:1)*(1+((s.teams[teamOf(s,p)].morale??50)-50)*.001);}
 export function simulateGame(s,data,awayId,homeId,options={}){
  const byId=Object.fromEntries(data.players.map(p=>[p.id,p]));
- optimizeLineup(s,data,awayId);optimizeLineup(s,data,homeId);
+ for(const id of [awayId,homeId])if(!(id===s.teamId&&s.manualLineup))optimizeLineup(s,data,id);
  const lineups=[availableLineup(s,data,awayId),availableLineup(s,data,homeId)];
  const teamIds=[awayId,homeId],score=[0,0],innings=[[],[]],index=[0,0],hits=[0,0],errors=[0,0];
  const arms=teamIds.map(id=>chooseStarter(s,data,id,id===s.teamId?options.starter:null));
@@ -332,11 +332,18 @@ export function migrateSeason(s,data){
 function settleDay(s,data,games){
  const date=s.day;const byTeam=new Map();for(const g of games){byTeam.set(g.away,{g,home:false});byTeam.set(g.home,{g,home:true});}
  for(const t of data.teams){const f=s.finance[t.id],match=byTeam.get(t.id);const wage=date<=seasonGames(s)?dailySalary(s,data,t.id):0;let income=0,cost=0,attendance=0;
-  if(match){const standing=s.teams[t.id],win=standing.w/(standing.w+standing.l||1);attendance=match.home?Math.round(clamp((24000+win*6000)*Math.pow(35/f.ticketPrice,.6),12000,45000)):0;income=150000+attendance*(f.ticketPrice+12);cost=match.home?180000:75000;}
+  if(match){const standing=s.teams[t.id],win=standing.w/(standing.w+standing.l||1);attendance=match.home?homeAttendance(fanWinPct(standing),f.ticketPrice):0;income=150000+attendance*(f.ticketPrice+12);cost=match.home?180000:75000;}
   f.cash+=income-wage-cost;f.income+=income;f.salaryCost+=wage;f.operatingCost+=cost;
   f.ledger.unshift({day:date,type:'operations',label:match?(match.home?'主場賽事':'客場賽事'):'休賽日',income,salary:wage,cost,attendance,net:income-wage-cost});f.ledger=f.ledger.slice(0,90);
  }
 }
+// Demand falls exponentially with price; elasticity and baseline grow with winning, capped by capacity.
+// Revenue per fan is price + concessions, so the best price sits inside the range and depends on the record.
+export const STADIUM_CAPACITY=45000,CONCESSION_PER_FAN=12;
+export function homeAttendance(win,price){const w=clamp(Number.isFinite(win)?win:.5,0,1),base=24000+w*16000,elasticity=40+w*20;return Math.round(clamp(base*Math.exp(-(price-35)/elasticity),3000,STADIUM_CAPACITY));}
+// Fans judge the club on a smoothed record (10-10 prior) so one early loss does not empty the stadium.
+export function fanWinPct(t){return ((t?.w||0)+10)/((t?.w||0)+(t?.l||0)+20);}
+export function gateEstimate(s,teamId,price){const fans=homeAttendance(fanWinPct(s.teams[teamId]),price);return {attendance:fans,gate:fans*(price+CONCESSION_PER_FAN)};}
 export function setTicketPrice(s,teamId,price){if(!Number.isInteger(price)||price<15||price>80)throw new Error('票價需介於 US$15–80。');s.finance[teamId].ticketPrice=price;}
 export function tradeValue(p,s){const raw=hasPitch(p)&&!hasBat(p)?pitchValue(p):Math.max(hasBat(p)?batValue(p):0,hasPitch(p)?pitchValue(p):0);const age=playerAge(s,p);return Math.max(5,(raw-35)*4*(age<=26?1.15:age>=35?.8:1)-salaryOf(p)/1000000*.3);}
 export function evaluateTrade(s,data,offer){
