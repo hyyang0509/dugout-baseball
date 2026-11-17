@@ -295,6 +295,18 @@ export function payroll(s,data,teamId){return rosterFor(s,data,teamId).reduce((s
 export function salaryFractionRemaining(s){const plan=s.salaryPlan||{start:0,end:seasonGames(s),fraction:1};return Math.max(0,plan.fraction*(plan.end-s.day)/Math.max(1,plan.end-plan.start));}
 export function dailySalary(s,data,teamId){const plan=s.salaryPlan;return Math.round(payroll(s,data,teamId)*(plan?plan.fraction/Math.max(1,plan.end-plan.start):1/seasonGames(s)));}
 export function remainingSalary(s,data,teamId){return Math.ceil(payroll(s,data,teamId)*salaryFractionRemaining(s));}
+// Save compatibility: versions 1..VERSION load; newer saves come from a newer app.
+export function saveVersionSupported(v){return Number.isInteger(v)&&v>=1&&v<=VERSION;}
+// A refreshed roster may add players (migrateSeason backfills their condition), but a save
+// that still references removed players cannot be restored safely.
+export function missingSavePlayers(s,data){
+ const ids=new Set(data.players.map(p=>p.id)),refs=new Set();
+ for(const club of Object.values(s.teams||{})){for(const id of club?.lineup||[])refs.add(id);for(const id of club?.rotation||[])refs.add(id);for(const id of Object.keys(club?.fielding||{}))refs.add(id);}
+ for(const id of Object.keys(s.ownership||{}))refs.add(id);
+ for(const id of Object.keys(s.batting||{}))refs.add(id);
+ for(const id of Object.keys(s.pitching||{}))refs.add(id);
+ return [...refs].filter(id=>!ids.has(id));
+}
 export function migrateSeason(s,data){
  const oldLength=s.schedule.length;
  if(oldLength===58&&s.phase==='regular'){

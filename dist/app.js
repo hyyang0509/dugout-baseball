@@ -1,5 +1,5 @@
-import {LEAGUES,saveKey,loadLeague} from './leagues.js?v=07';
-import {makeSeason,nextDay,resolveEvent,standings,autoLineup,availableLineup,chooseStarter,hasBat,hasPitch,batValue,pitchValue,teamOf,rosterFor,positionsOf,migrateSeason,setLineup,setPosition,assignFielding,salaryOf,payroll,remainingSalary,evaluateTrade,executeTrade,setTicketPrice,seasonGames,tradeDeadline,salaryFractionRemaining,dailySalary,EVENT_RATE,eventChoiceStatus,advanceSeason,seasonData,playerAge} from './engine.js?v=07';
+import {LEAGUES,saveKey,loadLeague} from './leagues.js?v=08';
+import {saveVersionSupported,missingSavePlayers,makeSeason,nextDay,resolveEvent,standings,autoLineup,availableLineup,chooseStarter,hasBat,hasPitch,batValue,pitchValue,teamOf,rosterFor,positionsOf,migrateSeason,setLineup,setPosition,assignFielding,salaryOf,payroll,remainingSalary,evaluateTrade,executeTrade,setTicketPrice,seasonGames,tradeDeadline,salaryFractionRemaining,dailySalary,EVENT_RATE,eventChoiceStatus,advanceSeason,seasonData,playerAge} from './engine.js?v=08';
 const $=s=>document.querySelector(s);let KEY='dugout.save.v1';let baseData,data,state=null,page='dashboard',rosterTab='lineup',leaderTab='teams',busy=false,modal=null,selectedTeam='mlb:119',filter='',starter=null,saveError=false;let newsFilter='all',newsDay='all';
 let activeLeague='MLB';
 const leagueName=()=>LEAGUES[activeLeague].name;
@@ -216,10 +216,10 @@ async function switchLeague(id){
   let raw;try{raw=localStorage.getItem(KEY);}catch(e){saveError=true;}
   if(raw){try{
    const parsed=JSON.parse(raw);
-   if(![1,2,3,4,5].includes(parsed.version)||!base.teams.some(t=>t.id===parsed.teamId)||!parsed.teams?.[parsed.teamId]||!Array.isArray(parsed.schedule)||!parsed.condition||!Number.isInteger(parsed.day)||parsed.day<0||parsed.day>100||!['regular','playoffs','finished'].includes(parsed.phase))throw new Error('存檔格式不符');
+   if(!saveVersionSupported(parsed.version)||!base.teams.some(t=>t.id===parsed.teamId)||!parsed.teams?.[parsed.teamId]||!Array.isArray(parsed.schedule)||!parsed.condition||!Number.isInteger(parsed.day)||parsed.day<0||parsed.day>100||!['regular','playoffs','finished'].includes(parsed.phase))throw new Error('存檔格式不符');
    const restored=seasonData(base,parsed);
    if(!Array.isArray(restored.players)||!restored.players.length||new Set(restored.players.map(p=>p.id)).size!==restored.players.length)throw new Error('球員名單格式不符');
-   for(const p of restored.players)if(!parsed.condition[p.id])throw new Error('名單版本變更');
+   if(missingSavePlayers(parsed,restored).length)throw new Error('名單版本變更');
    for(const t of base.teams)if(!parsed.teams[t.id])throw new Error('球隊名單格式不符');
    state=migrateSeason(parsed,restored);data=restored;selectedTeam=state.teamId;save();
   }catch(e){state=null;data=baseData;toast('此聯盟存檔無法讀取。原存檔已保留，開新球季後才會取代。');}}
