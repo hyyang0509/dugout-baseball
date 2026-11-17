@@ -1,5 +1,5 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=13';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=14';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
 export const VERSION=5;
 export const SEASON_GAMES=81;
@@ -289,13 +289,15 @@ export function nextDay(s,data,options={}){
  const own=results.find(g=>g.away===s.teamId||g.home===s.teamId);if(own)s.lastGame=own;
  s.history.unshift(...results.map(({batters,pitchers,lineups,...rest})=>rest));s.history=s.history.slice(0,180);
  if(s.phase!=='finished'){
+  if(!s.aiOnly){
   for(const p of rosterFor(s,data,s.teamId)){if(!s.condition[p.id].formDays&&random(s)<.025){s.condition[p.id].form=random(s)<.5?-1:1;s.condition[p.id].formDays=3+Math.floor(random(s)*3);}}
   const due=dueStory(s,data);
   if(due){s.event=due;publishEvent(s,due);}
   else if(random(s)<EVENT_RATE){makeEvent(s,data);if(s.event)publishEvent(s,s.event);}
+  }
   if(random(s)<.55){const clubs=data.teams.filter(t=>t.id!==s.teamId),id=clubs[Math.floor(random(s)*clubs.length)].id;const r=random(s);const e=storyEvent(s,data,id,r<.25?'injury':r<.85?'clubhouse':'offfield');if(e?.type==='clubhouse'){const available=e.options.map((o,i)=>i).filter(i=>eventChoiceStatus(s,data,e,i).ok),choice=available[Math.floor(random(s)*available.length)];applyClubhouseChoice(s,data,e,choice);e.text+=` 球團處理：${e.choices[choice]}。${e.options[choice].description}`;}publishEvent(s,e);}
  }
- if(s.phase==='regular'){const left=tradeDeadline(s)-s.day;
+ if(s.phase==='regular'&&!s.aiOnly){const left=tradeDeadline(s)-s.day;
   if(left===7||left===1)addNews(s,{category:'trade',teamIds:[s.teamId],title:left===7?'交易截止倒數 7 天':'明天就是交易截止日',text:`爭冠球隊：${data.teams.filter(t=>teamStrategy(s,data,t.id)==='contender').map(t=>t.zh).join('、')}。重建球隊：${data.teams.filter(t=>teamStrategy(s,data,t.id)==='rebuilding').map(t=>t.zh).join('、')}。交易提案會更頻繁。`});
   if(left===0)addNews(s,{category:'trade',teamIds:[s.teamId],title:'交易截止，名單底定',text:'本季交易窗口關閉，各隊將以現有陣容拚戰到季末。'});}
  recordDailyNews(s,data,results);
@@ -657,7 +659,7 @@ export function advanceSeason(previous,base){
  next.year=year;next.playerPool=players;next.createdAt=previous.createdAt;
  const ranked=standings(old),rank=ranked.findIndex(([id])=>id===old.teamId)+1;
  const leaders=Object.entries(old.batting).filter(([id])=>data.players.some(p=>p.id===id)).sort((a,b)=>b[1].hr-a[1].hr).slice(0,5).map(([id,stats])=>({id,name:data.players.find(p=>p.id===id).name,hr:stats.hr,avg:stats.ab?Number((stats.h/stats.ab).toFixed(3)):0}));
- next.career=[...(old.career||[]),{year:old.year||2026,champion:old.champion,teamId:old.teamId,rank,record:{w:old.teams[old.teamId].w,l:old.teams[old.teamId].l},games:seasonGames(old),standings:ranked.map(([id,t])=>({id,w:t.w,l:t.l,rs:t.rs,ra:t.ra})),leaders,endingCash:old.finance[old.teamId].cash}];
+ if(old.teamId)next.career=[...(old.career||[]),{year:old.year||2026,champion:old.champion,teamId:old.teamId,rank,record:{w:old.teams[old.teamId].w,l:old.teams[old.teamId].l},games:seasonGames(old),standings:ranked.map(([id,t])=>({id,w:t.w,l:t.l,rs:t.rs,ra:t.ra})),leaders,endingCash:old.finance[old.teamId].cash}];
  for(const t of base.teams){
   const f=next.finance[t.id],previousCash=old.finance[t.id].cash,wages=payroll(next,nextData,t.id),grant=Math.max(0,Math.ceil(wages+20000000-previousCash));
   f.openingCash=previousCash;f.cash=previousCash+grant;f.income=grant;f.ticketPrice=old.finance[t.id].ticketPrice;f.ledger=[{day:0,type:'funding',label:`${year} 球季董事會補助`,income:grant,salary:0,cost:0,attendance:0,net:grant}];
