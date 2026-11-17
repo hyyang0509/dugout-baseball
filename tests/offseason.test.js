@@ -67,6 +67,11 @@ test('a full offseason: market opens, bids resolve, players cross leagues, new y
   assert.ok(nd.MLB.players.some(p => p.simulated && /[A-Za-z]/.test(p.name)));
   assert.ok(Object.keys(n.leagues.MLB.contracts).length >= nd.MLB.players.length - 5);
   assert.ok(salaryOf(nd.CPBL.players[0]) < salaryOf({...nd.CPBL.players[0], league: 'MLB'}));
+  // Every club can still field a team, and the new season actually plays.
+  for (const id of W.LEAGUE_ORDER) for (const t of nd[id].teams) assert.equal(O.rosterShortage(nd[id].players.filter(p => teamOf(n.leagues[id], p) === t.id)), null, `${t.zh} roster`);
+  assert.ok(Array.isArray(market.postings) && Array.isArray(market.returns));
+  for (let i = 0; i < 5; i++) { const u = W.userSeason(n); if (u.event) resolveEvent(u, W.worldDatas(n, bases).CPBL, 0); W.worldNextDay(n, W.worldDatas(n, bases)); }
+  assert.ok(W.LEAGUE_ORDER.every(id => n.leagues[id].day >= 4));
   const back = W.restoreWorld(JSON.parse(JSON.stringify(n)), bases);
   assert.equal(back.year, n.year);
   assert.ok(JSON.stringify(n).length < 3_000_000);
