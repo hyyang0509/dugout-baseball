@@ -1,7 +1,7 @@
 // World mode: MLB, NPB and CPBL run side by side in one save, on one rating scale.
 // Each league keeps its own season state (schedule, standings, playoffs); the user
 // manages one club and the other two leagues are fully simulated by the AI.
-import {makeSeason, nextDay, seasonData, migrateSeason, standings, overall, hasBat, hasPitch, teamOf, addNews, VERSION, LEAGUE_SCALE, worldRating} from './engine.js?v=15';
+import {makeSeason, nextDay, seasonData, migrateSeason, standings, overall, hasBat, hasPitch, teamOf, addNews, VERSION, LEAGUE_SCALE, worldRating} from './engine.js?v=16';
 
 export const WORLD_VERSION = 1;
 export const WORLD_KEY = 'dugout.world.v1';
@@ -124,6 +124,7 @@ export function worldNextDay(w, datas, options = {}) {
     digestAI(w, id, before, s, datas);
   }
   if (userWasLive && user.phase === 'regular' && user.day > 0 && user.day % 7 === 0) weeklyDigest(w, datas);
+  if (userWasLive) progressScouting(w);
   return results;
 }
 
@@ -171,6 +172,7 @@ export function restoreWorld(parsed, bases) {
   }
   if (!parsed.leagues[parsed.userLeague].teams[parsed.teamId]) throw new Error('存檔格式不符');
   parsed.digest ??= [];
+  scouting(parsed);
   return parsed;
 }
 
@@ -205,3 +207,66 @@ export function leagueStrength(w, datas) {
 }
 
 export {VERSION};
+
+// ---------------------------------------------------------------- Scouting
+// Players outside your own league are seen through estimates until a scout files a
+// report. Reports take a few game days during the season (instant in the offseason)
+// and stay valid for the current and the following season.
+export const SCOUT_DAYS = 5, SCOUT_SLOTS = 3, SCOUT_BASE_COST = 40000;
+const SCOUT_PAY = {MLB: 1, NPB: 0.3, CPBL: 0.08};
+
+export function scouting(w) {
+  w.scouting ??= {known: {}, queue: []};
+  return w.scouting;
+}
+export const scoutCost = w => Math.max(3000, Math.round(SCOUT_BASE_COST * (SCOUT_PAY[w.userLeague] ?? 1) / 1000) * 1000);
+export function isKnown(w, p, league) {
+  if (!w || league === w.userLeague) return true;
+  const year = scouting(w).known[p.id];
+  return year != null && year >= w.year - 1;
+}
+export const scoutingDaysLeft = (w, id) => scouting(w).queue.find(q => q.id === id)?.days ?? null;
+
+function fuzz(id, key) {
+  let h = 2166136261;
+  for (const ch of String(id) + '|' + key) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 9) - 4; // -4..+4, fixed per player and rating
+}
+/** A rating as the user sees it: exact if known, otherwise an 8-point range around a biased guess. */
+export function ratingView(w, p, league, key) {
+  const v = p.ratings[key];
+  if (v == null || isKnown(w, p, league)) return {known: true, value: v};
+  const c = v + fuzz(p.id, key);
+  return {known: false, low: Math.max(20, c - 4), high: Math.min(80, c + 4)};
+}
+export function ovrView(w, p, league) {
+  const v = Math.round(overall(p));
+  if (isKnown(w, p, league)) return {known: true, value: v};
+  return {known: false, value: Math.round((v + fuzz(p.id, 'ovr')) / 5) * 5};
+}
+
+/** Sends a scout. Returns {ok, reason}. Charges the user's club immediately. */
+export function startScouting(w, p, league) {
+  const sc = scouting(w), user = userSeason(w), f = user.finance[w.teamId], cost = scoutCost(w);
+  if (league === w.userLeague) return {ok: false, reason: '同聯盟的球員不需要派球探。'};
+  if (isKnown(w, p, league)) return {ok: false, reason: '已經有這名球員的球探報告。'};
+  if (sc.queue.some(q => q.id === p.id)) return {ok: false, reason: '球探已經在觀察這名球員。'};
+  if (sc.queue.length >= SCOUT_SLOTS) return {ok: false, reason: `最多同時派出 ${SCOUT_SLOTS} 名球探。`};
+  if (f.cash < cost) return {ok: false, reason: '球團現金不足。'};
+  f.cash -= cost; f.operatingCost = (f.operatingCost || 0) + cost;
+  f.ledger?.unshift({day: user.day, type: 'scouting', label: `球探出差：${p.name}`, income: 0, salary: 0, cost, attendance: 0, net: -cost});
+  const instant = user.phase === 'finished';
+  if (instant) { sc.known[p.id] = w.year; addNews(user, {category: 'team', teamIds: [w.teamId], title: `球探報告：${p.name}`, text: `${LEAGUE_NAME[league]}的 ${p.name} 能力已確認。`}); }
+  else sc.queue.push({id: p.id, name: p.name, league, days: SCOUT_DAYS});
+  return {ok: true, instant};
+}
+
+function progressScouting(w) {
+  const sc = scouting(w), user = userSeason(w);
+  for (const q of sc.queue) q.days--;
+  for (const q of sc.queue.filter(q => q.days <= 0)) {
+    sc.known[q.id] = w.year;
+    addNews(user, {category: 'team', teamIds: [w.teamId], title: `球探報告：${q.name}`, text: `${LEAGUE_NAME[q.league]}的 ${q.name} 能力已確認，可在球員資料查看。`});
+  }
+  sc.queue = sc.queue.filter(q => q.days > 0);
+}
