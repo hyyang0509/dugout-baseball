@@ -99,3 +99,11 @@ html[data-theme=dark]{color-scheme:dark;--bg:#111b18;--paper:#1a2822;--ink:#e1e9
 .trait-chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid currentColor;color:#2f6f5b;background:transparent;cursor:help}
 .trait-hothead,.trait-fragile{color:#b4471f}.trait-leader,.trait-clutch{color:#9a6b00}.trait-mercenary{color:#6d4bb3}.trait-rookie{color:#1f6fb4}.trait-veteran,.trait-mentor{color:#5b6472}
 .rarity{font-weight:800}.rarity-uncommon{color:#1f6fb4}.rarity-legendary{color:#c28b00}
+
+/* Trade system v2 */
+.strategy-banner{display:grid;gap:2px;margin:0 0 14px;padding:10px 14px;border-radius:12px;border-left:4px solid #5b6472;background:rgba(91,100,114,.08)}
+.strategy-banner small{color:var(--muted,#6b7280)}
+.strategy-contender{border-left-color:#c28b00;background:rgba(194,139,0,.09)}
+.strategy-rebuilding{border-left-color:#1f6fb4;background:rgba(31,111,180,.08)}
+.trade-counters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.trade-counters strong{flex-basis:100%}
