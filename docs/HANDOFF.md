@@ -37,3 +37,8 @@
 - ovr/potential：畫面上的總評（含主守位守備）與潛力；交易與財務仍用 overall。
 - simulateGame 記錄自責分、二三壘安打、被全壘打、先發、勝敗、救援、中繼、救援失敗、優質先發（recordDecisions）；game.decisions 記本場勝敗救援。
 - dist/stats.js：batLine/pitchLine、OPS+/ERA+、可排序表格欄位與 statRows。
+
+## v1.7 GM 第二階段
+
+- dist/gm.js：teamProfile（能力計算的戰力剖面，可帶 moves 做假設交易）、leagueProfiles（依日/交易/傷兵快取的聯盟排名）、teamReport、tradeImpact、首席助理（assistantOf/assistantVerdict/assistantReport/suggestTarget/hireAssistant）。助理存於 s.assistant，advanceSeason 帶入下一季。
+- engine.js 交易：offer 改為 {targetTeam, give[], get[], cash}，cash 正數為提案方付、負數為對方付；normOffer 相容舊的 giveId/getId。packageValue 依 1／0.55／0.3 遞減。現金價值依 moneyScale 換算。tradeLog 同時保存 give/get 陣列與 giveId/getId。
