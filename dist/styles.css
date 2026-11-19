@@ -285,3 +285,13 @@ details summary{cursor:pointer;margin:14px 0 6px;font-weight:700;font-size:13px}
 .assistant-office .modal-actions.left{margin-left:20px}
 .season-actions.fired h2{color:var(--red)}
 .reason-list{color:var(--red);font-size:13px}
+
+/* v1.9 contracts */
+.extend-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}.extend-form label{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.outlook{font-size:13px}.outlook-sure,.outlook-likely{color:#3f8f4f}.outlook-maybe{color:var(--amber)}.outlook-no{color:var(--red)}
+b.outlook-sure,b.outlook-likely{color:#3f8f4f}b.outlook-maybe{color:var(--amber)}b.outlook-no{color:var(--red)}
+.neg-salary{width:120px;margin-bottom:4px}
+.fa-card{border-top:1px solid var(--line);padding:14px 20px;display:flex;flex-direction:column;gap:6px}
+.fa-card-head{display:flex;gap:12px;align-items:center}.fa-card-head small{display:block;color:var(--muted);font-size:12px}
+.fa-ratings{margin:0;font-size:13px}.fa-card .btn{align-self:flex-start}
+.league-table td small{display:block;color:var(--muted);font-size:11px}

@@ -1,5 +1,5 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=19';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=20';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
 export const VERSION=5;
 export const SEASON_GAMES=81;
@@ -345,10 +345,16 @@ export function makeEvent(s,data,forcedType=null){
   for(let i=0;i<Math.min(5,others.length);i++){
    const from=type==='trade_offer'?s.teamId:others[(start+i)%others.length].id;
    const to=type==='trade_offer'?others[(start+i)%others.length].id:others[(start+i+1)%others.length].id;
-   const offer=findTradeProposal(s,data,from,to);if(!offer)continue;
+   let offer=findTradeProposal(s,data,from,to);if(!offer)continue;
+   // Sometimes the AI club bundles a contract it wants to shed (2-for-1).
+   let dumpName='';
+   if(type==='trade_offer'&&random(s)<.35){
+    const dump=rosterFor(s,data,to).filter(p=>p.id!==offer.getId&&!s.condition[p.id].injury&&!(s.teams[to].lineup||[]).includes(p.id)&&!untouchables(s,data,to).includes(p.id)).sort((a,b)=>(contractYears(s,b)*salaryFor(s,b))-(contractYears(s,a)*salaryFor(s,a)))[0];
+    if(dump){const two={...normOffer(offer),get:[offer.getId,dump.id]};let r=evaluateTrade(s,data,two);if(!r.ok&&r.neededCash>0&&r.neededCash<offer.cash+1){two.cash=r.neededCash;r=evaluateTrade(s,data,two);}if(!r.ok&&r.neededCash<=0&&r.reasons.length===1){two.cash=Math.max(0,r.neededCash);r=evaluateTrade(s,data,two);}if(r.ok){offer=r.offer;dumpName=dump.name;}}
+   }
    const give=data.players.find(p=>p.id===offer.giveId),get=data.players.find(p=>p.id===offer.getId),a=data.teams.find(t=>t.id===from),b=data.teams.find(t=>t.id===to);
    const motive={contender:`${b.zh}（${STRATEGY_LABEL.contender}中）想補強即戰力，看上了 ${give.name}。`,rebuilding:`${b.zh}（${STRATEGY_LABEL.rebuilding}中）想累積年輕戰力，對 ${give.name} 很有興趣。`,balanced:`${b.zh} 想補強陣容弱點。`}[teamStrategy(s,data,b.id)];
-   if(type==='trade_offer')s.event={type,player:p.id,title:`交易提案：${b.zh}`,text:`${motive}${b.zh} 提議用 ${get.name} 換取本隊 ${give.name}。${offer.cash?`本隊需附加 US$${offer.cash.toLocaleString('en-US')} 遊戲現金。`:'不附加現金。'}`,offer,choices:['接受交易','拒絕，保留目前陣容']};
+   if(type==='trade_offer')s.event={type,player:p.id,title:`交易提案：${b.zh}`,text:`${motive}${b.zh} 提議用 ${get.name}${dumpName?`，外加 ${dumpName}（對方想甩掉的合約）`:''} 換取本隊 ${give.name}。${offer.cash?`本隊需附加 US$${offer.cash.toLocaleString('en-US')} 遊戲現金。`:'不附加現金。'}`,offer,choices:['接受交易','拒絕，保留目前陣容']};
    else{executeTrade(s,data,offer);s.event={type,player:p.id,title:'聯盟交易消息',text:`${a.zh} 送出 ${give.name}，向 ${b.zh} 換入 ${get.name}${offer.cash?`，另付 US$${offer.cash.toLocaleString('en-US')} 遊戲現金`:''}。雙方名單已更新，不影響你的球員。`,offer,choices:['確認消息']};}
    return;
   }
@@ -418,7 +424,10 @@ const SKILL_KEYS=['contact','power','eye','stuff','control','movement'],ATHLETIC
 export function worldRating(league,key,value){const k=LEAGUE_SCALE[league]||LEAGUE_SCALE.MLB;if(SKILL_KEYS.includes(key))return clamp(Math.round(49+(value-49)*k.spread+k.shift),20,80);if(ATHLETIC_KEYS.includes(key))return clamp(Math.round(value+k.shift/2),20,80);return value;}
 export function marketSalary(p){const value=hasPitch(p)&&!hasBat(p)?pitchValue(p):Math.max(hasBat(p)?batValue(p):0,hasPitch(p)?pitchValue(p):0);return Math.round((250000+Math.pow(Math.max(0,value-40),2)*15000+(p.role==='SP'?350000:0))/50000)*50000;}
 export function salaryOf(p){const pay=LEAGUE_PAY[p.league]??1;const base=marketSalary(p);return pay===1?base:Math.max(30000,Math.round(base*pay/10000)*10000);}
-export function payroll(s,data,teamId){return rosterFor(s,data,teamId).reduce((sum,p)=>sum+salaryOf(p),0);}
+/** Contract salary: locked when the deal is signed (s.salaries); falls back to today's market price. */
+export function salaryFor(s,p){return s?.salaries?.[p.id]??salaryOf(p);}
+export const contractYears=(s,p)=>s?.contracts?.[p.id]??1;
+export function payroll(s,data,teamId){return rosterFor(s,data,teamId).reduce((sum,p)=>sum+salaryFor(s,p),0);}
 export function salaryFractionRemaining(s){const plan=s.salaryPlan||{start:0,end:seasonGames(s),fraction:1};return Math.max(0,plan.fraction*(plan.end-s.day)/Math.max(1,plan.end-plan.start));}
 export function dailySalary(s,data,teamId){const plan=s.salaryPlan;return Math.round(payroll(s,data,teamId)*(plan?plan.fraction/Math.max(1,plan.end-plan.start):1/seasonGames(s)));}
 export function remainingSalary(s,data,teamId){return Math.ceil(payroll(s,data,teamId)*salaryFractionRemaining(s));}
@@ -502,11 +511,14 @@ function positionNeed(s,data,teamId,p,excludeId){
  return batValue(p)>best+3?1.12:1;
 }
 export function strategyValue(s,data,teamId,p,excludeId){
- const base=tradeValue(p,s),age=playerAge(s,p),salary=salaryOf(p)/1000000,strategy=teamStrategy(s,data,teamId);
+ const base=tradeValue(p,s),age=playerAge(s,p),salary=salaryFor(s,p)/1000000,strategy=teamStrategy(s,data,teamId);
+ // Contract: a cheap multi-year deal is an asset, an expensive long one for an older player a burden.
+ const years=Math.min(4,contractYears(s,p)),scale=moneyScale(s)||1,surplus=(salaryOf(p)-salaryFor(s,p))/1000000/scale;
+ const termValue=surplus*years*.8-(age>=32?Math.max(0,years-1)*base*.08:0)-(strategy==='rebuilding'?salary/scale*Math.max(0,years-1)*.4:0);
  let v=base;
  if(strategy==='contender')v=base*(age>=29?1.15:age<=24?.85:1)+salary*.25;
  else if(strategy==='rebuilding')v=base*(age<=25?1.3:age>=31?.6:1)-salary*.9;
- return Math.max(3,v*positionNeed(s,data,teamId,p,excludeId));
+ return Math.max(3,(v+termValue)*positionNeed(s,data,teamId,p,excludeId));
 }
 export function untouchables(s,data,teamId){return memo(s,'untouchable',teamId,()=>computeUntouchables(s,data,teamId));}
 function computeUntouchables(s,data,teamId){
@@ -515,30 +527,114 @@ function computeUntouchables(s,data,teamId){
  const n=strategy==='balanced'?1:2;
  return pool.map(p=>({id:p.id,v:tradeValue(p,s)})).sort((a,b)=>b.v-a.v).slice(0,n).map(x=>x.id);
 }
-export function tradeValue(p,s){const raw=hasPitch(p)&&!hasBat(p)?pitchValue(p):Math.max(hasBat(p)?batValue(p):0,hasPitch(p)?pitchValue(p):0);const age=playerAge(s,p);return Math.max(5,(raw-35)*4*(age<=26?1.15:age>=35?.8:1)-salaryOf(p)/1000000*.3);}
+export function tradeValue(p,s){const raw=hasPitch(p)&&!hasBat(p)?pitchValue(p):Math.max(hasBat(p)?batValue(p):0,hasPitch(p)?pitchValue(p):0);const age=playerAge(s,p);return Math.max(5,(raw-35)*4*(age<=26?1.15:age>=35?.8:1)-salaryFor(s,p)/1000000*.3);}
+// ---- Contract talks: a player's asking salary and his hidden floor (both stable for a season).
+export function contractAsk(s,p,league=p.league){
+ const base=salaryOf({...p,league}),age=playerAge(s,p),h=idHash(p.id,'ask'+(s.year||2026));
+ const club=s.teams[teamOf(s,p)],mood=club?((club.morale??50)-50)/500:0;
+ let factor=1+(h%16)/100+(age<=29?.05:age>=34?-.12:0);
+ const b=s.batting?.[p.id],pi=s.pitching?.[p.id];
+ if(b?.pa>=150){const ops=((b.h+b.bb)/Math.max(1,b.ab+b.bb))+((b.h+(b.d||0)+2*(b.t||0)+3*b.hr)/Math.max(1,b.ab));factor+=clamp((ops-.72)*.6,-.1,.15);}
+ if(pi?.outs>=150){const era=(pi.er??pi.r)*27/pi.outs;factor+=clamp((4.2-era)*.04,-.1,.15);}
+ const ask=Math.max(10000,Math.round(base*factor/10000)*10000),floor=Math.round(ask*(.86+((h>>>5)%8)/100-mood)/10000)*10000;
+ return {ask,floor,market:base};
+}
+/** How a salary offer is likely to land, without revealing the exact floor. */
+export function offerOutlook(ask,floor,offer){return offer>=ask?'sure':offer>=floor?'likely':offer>=floor*.95?'maybe':'no';}
+export const OUTLOOK_LABEL={sure:'一定接受',likely:'應該會接受',maybe:'看他心情',no:'幾乎不可能'};
+/** In-season extension for a player in the last year of his deal. */
+export function extensionCheck(s,data,id){
+ const p=data.players.find(x=>x.id===id),reasons=[];
+ if(!p||teamOf(s,p)!==s.teamId)return {ok:false,reasons:['這名球員不在你的名單上。']};
+ if(!s.contracts)reasons.push('這個模式沒有合約年限。');
+ else if(contractYears(s,p)>1)reasons.push(`他的合約還有 ${contractYears(s,p)} 年，明年再談。`);
+ if(s.phase==='finished')reasons.push('球季已結束，請在休賽季的到期合約處理。');
+ const talk=s.extensionTalks?.[id];if(talk&&s.day-talk<15)reasons.push(`上次談判破裂，${15-(s.day-talk)} 天後才能再談。`);
+ return {ok:!reasons.length,reasons,player:p,...contractAsk(s,p,s.league)};
+}
+export function extendContract(s,data,id,{salary,years}){
+ const c=extensionCheck(s,data,id);if(!c.ok)throw new Error(c.reasons.join('\n'));
+ salary=Math.round(Number(salary)/10000)*10000;years=Number(years);
+ if(!Number.isInteger(years)||years<1||years>5||!(salary>0))throw new Error('請輸入合理的年薪與 1 到 5 年。');
+ const p=c.player;
+ if(salary<c.floor){(s.extensionTalks??={})[id]=s.day;const club=s.teams[s.teamId];club.morale=clamp((club.morale??50)-2,0,100);
+  addNews(s,{category:'decision',teamIds:[s.teamId],playerIds:[id],title:`${p.name} 拒絕提前續約`,text:`球團開出年薪 US$${salary.toLocaleString('en-US')}，他覺得太低。15 天後可以再談。`});return {ok:false,player:p};}
+ s.contracts[id]=1+years;(s.pendingSalary??={})[id]=salary;
+ addNews(s,{category:'trade',teamIds:[s.teamId],playerIds:[id],title:`提前續約：${p.name}`,text:`${years} 年延長合約，明年起年薪 US$${salary.toLocaleString('en-US')}。`});
+ return {ok:true,player:p,salary,years};
+}
+// ---- Midseason free agents: generated depth/import options, refreshed weekly, signable until the deadline.
+const FA_NAMES={
+ CPBL:['艾德華','布雷迪','卡麥隆','德瑞克','馬汀尼','羅德斯','柯林頓','魏斯特','安德魯','費南多','葛瑞森','雷克斯'],
+ NPB:['エドワーズ','ブレイディ','キャメロン','デレク','マルティネス','ロドリゲス','クリントン','ウェスト','アンドリュース','フェルナンド','グレイソン','レックス'],
+ MLB:['Eddie Ward','Brady Cole','Cam Ferris','Derek Lunt','Manny Ortiz','Rod Sayer','Clint Moody','Wes Barlow','Drew Hale','Fernando Ruiz','Gray Tolliver','Rex Dunham'],
+};
+export const freeAgentDeadline=tradeDeadline;
+export function freeAgentPool(s,data){
+ const week=Math.floor(s.day/7),league=s.league||data.players[0]?.league||'MLB';
+ if(s.faPool?.week===week&&s.faPool.teamId===s.teamId)return s.faPool.players.filter(p=>!data.players.some(q=>q.id===p.id));
+ const all=data.players.filter(p=>p.team_id!=='FA'),byOvr=list=>[...list].sort((a,b)=>overall(b)-overall(a));
+ const pitchers=byOvr(all.filter(p=>hasPitch(p)&&!hasBat(p))),batters=byOvr(all.filter(p=>hasBat(p)&&!hasPitch(p)));
+ const imports=league!=='MLB',band=(list,i)=>{const lo=imports?0:.35,hi=imports?.18:.75,k=idHash(s.teamId,`fa${week}|${i}`);return list[Math.floor(list.length*(lo+(k%1000)/1000*(hi-lo)))]||list[0];};
+ const players=[];
+ for(let i=0;i<6;i++){
+  const t=band(i<4?pitchers:batters,i),h=idHash(`${s.teamId}|${week}|${i}`,'fa'),id=`fa:${league}:${s.year||2026}:${week}:${i}`;
+  const ratings=Object.fromEntries(Object.entries(t.ratings).map(([k,v],j)=>[k,clamp(Math.round(v+((h>>>(j*3))%7)-3+(imports?1:0)),20,80)]));
+  const names=FA_NAMES[league]||FA_NAMES.MLB,name=names[(idHash(s.teamId,'fanames'+week)+i)%names.length];
+  const p={id,name,source_name:name,team_id:'FA',league,origin:'INTL',position:t.position,positions:[...(t.positions||[t.position])],role:t.role,ratings,birth_date:`${(s.year||2026)-26-(h%8)}-06-01`,jersey_number:'—',status:'Active',simulated:true,bats:t.bats,throws:t.throws};
+  p.ask=Math.round(salaryOf(p)*1.1/10000)*10000;players.push(p);
+ }
+ s.faPool={week,teamId:s.teamId,players};
+ return players;
+}
+export function signCheck(s,data,id){
+ const p=freeAgentPool(s,data).find(x=>x.id===id),reasons=[];
+ if(!p)return {ok:false,reasons:['這名球員已不在市場上。']};
+ const league=s.league;
+ if(s.phase!=='regular'||s.day>=freeAgentDeadline(s))reasons.push(`季中簽約截止（第 ${freeAgentDeadline(s)} 日）${league==='CPBL'?'，相當於中職的 8/31 洋將大限':''}。`);
+ const roster=rosterFor(s,data,s.teamId),lim=FOREIGN_LIMIT[league];
+ if(lim&&isImport(p,league)&&importCount(roster,league)>=lim)reasons.push(`洋將名額已滿（每隊最多 ${lim} 人），先釋出一名洋將。`);
+ if(roster.length>=100)reasons.push('名單已滿 100 人。');
+ const f=s.finance[s.teamId],owed=Math.round(p.ask*salaryFractionRemaining(s));
+ if(payroll(s,data,s.teamId)+p.ask>f.budget)reasons.push('簽下後薪資會超過預算。');
+ if(f.cash-owed<remainingSalary(s,data,s.teamId))reasons.push('現金不足以支付剩餘球季薪資。');
+ return {ok:!reasons.length,reasons,player:p,owed};
+}
+/** Signs a pool player for the rest of the season. Returns the new player; callers must rebuild `data` from s.playerPool. */
+export function signFreeAgent(s,data,id){
+ const c=signCheck(s,data,id);if(!c.ok)throw new Error(c.reasons.join('\n'));
+ const p={...c.player,team_id:s.teamId};delete p.ask;
+ s.playerPool??=data.players.slice();s.playerPool.push(p);
+ s.ownership[p.id]=s.teamId;s.condition[p.id]={energy:100,injury:0,form:0,formDays:0};
+ (s.contracts??={})[p.id]=1;(s.salaries??={})[p.id]=c.player.ask;
+ s.faPool.players=s.faPool.players.filter(x=>x.id!==id);
+ addNews(s,{category:'trade',teamIds:[s.teamId],playerIds:[p.id],title:`季中簽約：${p.name}`,text:`簽下${isImport(p,s.league)?'洋將':'自由球員'} ${p.name}（遊戲生成的虛構球員），本季年薪 US$${c.player.ask.toLocaleString('en-US')}，合約到季末。`});
+ return p;
+}
 // ---- Releasing a player: the club pays the rest of this season's salary now; he becomes a free agent.
 export function releaseCheck(s,data,id){
  const p=data.players.find(x=>x.id===id),reasons=[];
  if(!p||teamOf(s,p)!==s.teamId)return {ok:false,reasons:['這名球員不在你的名單上。']};
- if(s.phase==='finished')reasons.push('球季已結束，請在休賽季處理合約。');
+ if(s.phase==='finished'&&!s.offseasonTrades)reasons.push('球季已結束，請進入休賽季再處理。');
+ if(s.phase==='finished'&&contractYears(s,p)<=1)reasons.push('他的合約今年到期，請在休賽季的「到期合約」選擇放走。');
  const roster=rosterFor(s,data,s.teamId).filter(x=>x.id!==id),healthy=roster.filter(x=>!s.condition[x.id].injury);
  if(roster.length<26)reasons.push('名單至少要保留 26 人。');
  if(!assignFielding(healthy.filter(hasBat).map(x=>x.id),data)||healthy.filter(hasPitch).length<9)reasons.push('釋出後無法組成完整陣容（九個守位、至少 9 名投手）。');
  if(s.event?.participants?.includes(id))reasons.push('請先處理和他有關的事件。');
- const owed=Math.round(salaryOf(p)*salaryFractionRemaining(s));
+ const pay=salaryFor(s,p),owed=Math.round(pay*(s.phase==='finished'?0:salaryFractionRemaining(s))+pay*Math.max(0,contractYears(s,p)-1));
  if(s.finance[s.teamId].cash<owed)reasons.push('現金不足以付清剩餘薪資。');
  return {ok:!reasons.length,reasons,owed,player:p};
 }
 export function releasePlayer(s,data,id){
  const r=releaseCheck(s,data,id);if(!r.ok)throw new Error(r.reasons.join('\n'));
  const f=s.finance[s.teamId],p=r.player;
- f.cash-=r.owed;f.salaryCost+=r.owed;f.ledger.unshift({day:s.day,type:'release',label:`釋出 ${p.name}（付清剩餘薪資）`,income:0,salary:r.owed,cost:0,attendance:0,net:-r.owed});f.ledger=f.ledger.slice(0,90);
+ f.cash-=r.owed;f.salaryCost+=r.owed;f.ledger.unshift({day:s.day,type:'release',label:`釋出 ${p.name}（付清剩餘合約）`,income:0,salary:r.owed,cost:0,attendance:0,net:-r.owed});f.ledger=f.ledger.slice(0,90);
  s.ownership[id]='FA';(s.released??=[]).unshift({day:s.day,id,name:p.name,owed:r.owed});
  const club=s.teams[s.teamId];
  if(club.lineup.includes(id)){club.lineup=autoLineup(rosterFor(s,data,s.teamId),s.condition);club.fielding=assignFielding(club.lineup,data);}
  club.rotation=(club.rotation||[]).filter(x=>x!==id);
  if(playerTraits(s,p).includes('leader')){club.morale=clamp((club.morale??50)-5,0,100);}
- addNews(s,{category:'trade',teamIds:[s.teamId],playerIds:[id],title:`釋出 ${p.name}`,text:`${data.teams.find(t=>t.id===s.teamId).zh} 釋出 ${p.name}，付清本季剩餘薪資 US$${r.owed.toLocaleString('en-US')}。他將以自由球員身分等待其他球隊。`});
+ addNews(s,{category:'trade',teamIds:[s.teamId],playerIds:[id],title:`釋出 ${p.name}`,text:`${data.teams.find(t=>t.id===s.teamId).zh} 釋出 ${p.name}，付清剩餘合約 US$${r.owed.toLocaleString('en-US')}。他將以自由球員身分等待其他球隊。`});
  for(const fn of HOOKS.release||[])fn(s,data,p,r.owed);
  return r;
 }
@@ -562,13 +658,17 @@ export function packageValue(values){return [...values].sort((a,b)=>b-a).reduce(
 export function evaluateTrade(s,data,input){
  const offer=normOffer(input),{targetTeam,give:giveIds,get:getIds,cash}=offer,my=offer.fromTeam||s.teamId;
  const find=id=>data.players.find(p=>p.id===id),gives=giveIds.map(find),gets=getIds.map(find),reasons=[];
- if(s.phase!=='regular'||s.day>=tradeDeadline(s))reasons.push(`交易截止：僅例行賽前 ${tradeDeadline(s)} 日可交易。`);
- if(!s.teams[targetTeam]||targetTeam===my||!gives.length||!gets.length||gives.some(p=>!p||teamOf(s,p)!==my)||gets.some(p=>!p||teamOf(s,p)!==targetTeam))return {ok:false,reasons:['球員所屬已改變，請重新選擇。'],neededCash:0,offer};
+ const offseason=s.phase==='finished'&&!!s.offseasonTrades;
+ if(!offseason&&(s.phase!=='regular'||s.day>=tradeDeadline(s)))reasons.push(`交易窗口未開：例行賽前 ${tradeDeadline(s)} 日與休賽季可以交易。`);
+ if(!gives.length&&!(cash>0)||!gets.length&&!(cash<0))return {ok:false,reasons:[!gives.length?'只買人時必須由本隊付現金。':'只賣人時必須由對方付現金。'],neededCash:0,offer};
+ if(!s.teams[targetTeam]||targetTeam===my||gives.some(p=>!p||teamOf(s,p)!==my)||gets.some(p=>!p||teamOf(s,p)!==targetTeam))return {ok:false,reasons:['球員所屬已改變，請重新選擇。'],neededCash:0,offer};
+ if(offseason&&s.contracts&&[...gives,...gets].some(p=>contractYears(s,p)<=1))reasons.push('合約到期的球員在休賽季不能交易，請在合約清單處理。');
+ if(s.league==='CPBL'&&s.phase!=='finished'&&[...gives,...gets].some(p=>isImport(p,'CPBL')))reasons.push('中職規定：洋將同一年度內不得轉換球隊（季中不能交易洋將）。');
  if(gives.length>TRADE_MAX_PLAYERS||gets.length>TRADE_MAX_PLAYERS)return {ok:false,reasons:[`每邊最多 ${TRADE_MAX_PLAYERS} 名球員。`],neededCash:0,offer};
  if(!Number.isSafeInteger(cash)||Math.abs(cash)>TRADE_CASH_LIMIT||cash%10000)return {ok:false,reasons:['交易現金需為 1 萬美元的倍數，且不超過 2,000 萬美元。'],neededCash:0,offer};
  if([...gives,...gets].some(p=>s.condition[p.id].injury))reasons.push('此版本不開放交易傷兵。');
  if(s.event?.type==='clubhouse'&&s.event.participants?.some(id=>giveIds.includes(id)||getIds.includes(id)))reasons.push('請先處理更衣室事件，再交易相關球員。');
- const sal=list=>list.reduce((a,p)=>a+salaryOf(p),0),delta=sal(gets)-sal(gives),myPayroll=payroll(s,data,my)+delta,otherPayroll=payroll(s,data,targetTeam)-delta;
+ const sal=list=>list.reduce((a,p)=>a+salaryFor(s,p),0),delta=sal(gets)-sal(gives),myPayroll=payroll(s,data,my)+delta,otherPayroll=payroll(s,data,targetTeam)-delta;
  const myRemaining=Math.ceil(myPayroll*salaryFractionRemaining(s)),otherRemaining=Math.ceil(otherPayroll*salaryFractionRemaining(s));
  if(myPayroll>s.finance[my].budget)reasons.push('交易後本季薪資超過你的薪資預算。');
  if(otherPayroll>s.finance[targetTeam].budget)reasons.push('對方球隊無法容納交易後薪資。');
@@ -576,7 +676,7 @@ export function evaluateTrade(s,data,input){
  if(cash<0&&s.finance[targetTeam].cash+cash<otherRemaining)reasons.push('對方現金不足，付不出這筆錢。');
  const locked=targetTeam!==s.teamId?untouchables(s,data,targetTeam):[];
  for(const p of gets)if(locked.includes(p.id))reasons.push(`${data.teams.find(t=>t.id===targetTeam).zh} 將 ${p.name} 列為非賣品。`);
- const receive=packageValue(gives.map(p=>strategyValue(s,data,targetTeam,p,getIds[0]))),lose=packageValue(gets.map(p=>strategyValue(s,data,targetTeam,p,null)));
+ const receive=packageValue(gives.map(p=>strategyValue(s,data,targetTeam,p,getIds[0]??null))),lose=packageValue(gets.map(p=>strategyValue(s,data,targetTeam,p,null)));
  const markup=my===s.teamId&&HOOKS.userTradeMarkup?HOOKS.userTradeMarkup(s):1,perValue=CASH_PER_VALUE*(moneyScale(s)||1),offered=receive+cash/perValue,wanted=lose*1.05*markup;
  // Positive: what we must add; negative: the most the other club would pay us on top.
  const step=perValue>=400000?50000:10000,balance=(wanted-receive)*perValue,neededCash=balance>0?Math.ceil(balance/step)*step:-Math.floor(-balance/step)*step;
@@ -592,7 +692,7 @@ export function evaluateTrade(s,data,input){
 }
 // Counteroffers: alternatives the AI club would accept, built from the rejected draft.
 export function tradeCounters(s,data,input){
- const offer=normOffer(input),my=offer.fromTeam||s.teamId,target=offer.targetTeam,current=evaluateTrade(s,data,offer);if(current.ok||!offer.give.length||!offer.get.length)return [];
+ const offer=normOffer(input),my=offer.fromTeam||s.teamId,target=offer.targetTeam,current=evaluateTrade(s,data,offer);if(current.ok||!offer.get.length)return [];
  if(current.reasons.some(r=>/非賣品|所屬已改變|截止|傷兵/.test(r)))return [];
  const settle=o=>{const r=evaluateTrade(s,data,o);if(r.ok)return r.offer;if(r.neededCash&&Math.abs(r.neededCash)<=TRADE_CASH_LIMIT){const withCash={...r.offer,cash:Math.max(r.neededCash,-TRADE_CASH_LIMIT)};const again=evaluateTrade(s,data,withCash);if(again.ok)return again.offer;}return null;};
  const cashText=o=>o.cash>0?`，本隊附加 US$${o.cash.toLocaleString('en-US')}`:o.cash<0?`，對方付 US$${(-o.cash).toLocaleString('en-US')}`:'（不加現金）';
@@ -602,7 +702,7 @@ export function tradeCounters(s,data,input){
  const mine=rosterFor(s,data,my).filter(p=>!offer.give.includes(p.id)&&!s.condition[p.id].injury);
  if(offer.give.length<TRADE_MAX_PLAYERS)pickBest(mine,p=>({...offer,give:[...offer.give,p.id],cash:0}),(p,o)=>`對方要求再加上本隊的 ${p.name}${cashText(o)}`);
  if(offer.get.length>1)for(const id of offer.get){const o=settle({...offer,get:offer.get.filter(x=>x!==id),cash:0});if(o){out.push({label:`拿掉 ${name(id)}${cashText(o)}`,offer:o});break;}}
- const first=data.players.find(p=>p.id===offer.get[0]);
+ const first=data.players.find(p=>p.id===offer.get[0]);if(!first)return out.slice(0,3);
  const theirs=rosterFor(s,data,target).filter(p=>!offer.get.includes(p.id)&&!s.condition[p.id].injury&&hasBat(p)===hasBat(first)&&hasPitch(p)===hasPitch(first));
  pickBest(theirs,p=>({...offer,get:[p.id,...offer.get.slice(1)],cash:0}),(p,o)=>`把 ${first.name} 改成對方的 ${p.name}${cashText(o)}`);
  return out.slice(0,3);
