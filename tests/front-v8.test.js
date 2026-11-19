@@ -51,14 +51,14 @@ test('releasing pays the rest of the salary, frees the roster spot and keeps the
 });
 
 test('imports: trades cannot push a club over its foreign-player limit',()=>{
- const s=fresh();s.league='CPBL';
+ const s=fresh();s.league='NPB';
  const other=data.teams[1].id,mine=rosterFor(s,data,s.teamId),theirs=rosterFor(s,data,other).filter(p=>!untouchables(s,data,other).includes(p.id));
- for(const p of data.players)p.origin='TWN';
+ for(const p of data.players)p.origin='JPN';
  try{
-  mine.slice(0,FOREIGN_LIMIT.CPBL).forEach(p=>{p.origin='INTL';});
+  mine.slice(0,FOREIGN_LIMIT.NPB).forEach(p=>{p.origin='INTL';});
   const target=theirs.sort((a,b)=>ovr(a)-ovr(b))[0];target.origin='INTL';
-  const give=mine.filter(p=>p.origin==='TWN').sort((a,b)=>ovr(b)-ovr(a))[0];
-  assert.equal(importCount(mine,'CPBL'),FOREIGN_LIMIT.CPBL);
+  const give=mine.filter(p=>p.origin==='JPN').sort((a,b)=>ovr(b)-ovr(a))[0];
+  assert.equal(importCount(mine,'NPB'),FOREIGN_LIMIT.NPB);
   const r=evaluateTrade(s,data,{targetTeam:other,give:[give.id],get:[target.id],cash:0});
   assert.ok(r.reasons.some(x=>/洋將/.test(x)),r.reasons.join());
   const swap=mine.find(p=>p.origin==='INTL'&&hasPitch(p)===hasPitch(target)&&!s.condition[p.id].injury)||mine.find(p=>p.origin==='INTL');

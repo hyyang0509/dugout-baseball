@@ -1,7 +1,7 @@
 // World offseason: expiring contracts, a cross-league free-agent market, foreign-player
 // quotas, then the usual aging/retirement/rookie rollover for every league.
-import {advanceSeason, overall, hasBat, hasPitch, teamOf, random, addNews, salaryOf, marketSalary, LEAGUE_PAY, teamStrategy, playerAge, positionsOf, worldRating} from './engine.js?v=19';
-import {LEAGUE_ORDER, LEAGUE_NAME, HOME_LEAGUE, isForeign, userSeason, worldDatas, finishWorld, ensureContracts, trimAI} from './world.js?v=19';
+import {advanceSeason, contractAsk, releasePlayer, salaryFor, overall, hasBat, hasPitch, teamOf, random, addNews, salaryOf, marketSalary, LEAGUE_PAY, teamStrategy, playerAge, positionsOf, worldRating} from './engine.js?v=20';
+import {LEAGUE_ORDER, LEAGUE_NAME, HOME_LEAGUE, isForeign, userSeason, worldDatas, finishWorld, ensureContracts, trimAI} from './world.js?v=20';
 
 // How attractive a league is to a free agent, on top of the money.
 export const LEAGUE_PRESTIGE = {MLB: 1, NPB: 0.75, CPBL: 0.55};
@@ -91,7 +91,8 @@ export function startOffseason(previous, bases) {
   finishWorld(w, datas);
   datas = worldDatas(w, bases);
   const user = userSeason(w), year = w.year;
-  const freeAgents = [], resigned = {}, userExpiring = [];
+  const freeAgents = [], resigned = {}, userExpiring = [], userControlled = [];
+  user.offseasonTrades = true;
   for (const id of LEAGUE_ORDER) {
     const s = w.leagues[id], data = datas[id];
     ensureContracts(s, data);
@@ -104,8 +105,8 @@ export function startOffseason(previous, bases) {
         const ovr = Math.round(overall(p)), age = year - Number(p.birth_date?.slice(0, 4) || 1998);
         const entry = {id: p.id, name: p.name, league: id, teamId: t.id, ovr, age, position: p.position, origin: p.origin || 'INTL', pitcher: isPitcherOnly(p), value: marketSalary(p)};
         const controlled = age <= (id === 'MLB' ? 26 : 27);
-        if (id === w.userLeague && t.id === w.teamId && controlled) { resigned[id].push(p.id); return; }
-        if (id === w.userLeague && t.id === w.teamId) { userExpiring.push({...entry, keep: true, years: contractLength(p, year, .5)}); return; }
+        if (id === w.userLeague && t.id === w.teamId && controlled) { resigned[id].push(p.id); userControlled.push({...entry, salary: controlledSalary(s, p, id)}); return; }
+        if (id === w.userLeague && t.id === w.teamId) { const {ask, floor} = contractAsk(s, p, id); userExpiring.push({...entry, keep: true, years: contractLength(p, year, .5), ask, floor, salary: ask}); return; }
         // Young players are still under club control; low-level ones stay on as depth.
         if (ovr < MARKET_FLOOR[id] || controlled) { resigned[id].push(p.id); return; }
         let keep = rank < 12 ? 0.7 : rank < 26 ? 0.5 : 0.25;
@@ -138,7 +139,7 @@ export function startOffseason(previous, bases) {
     }
   }
   freeAgents.sort((a, b) => b.ovr - a.ovr || a.name.localeCompare(b.name));
-  w.offseason = {year, freeAgents, resigned, userExpiring, postingRequests, bids: {}};
+  w.offseason = {year, freeAgents, resigned, userExpiring, userControlled, postingRequests, bids: {}};
   const posted = freeAgents.filter(r => r.posting).length;
   addNews(user, {category: 'world', teamIds: [], title: `${year} 休賽季開始：自由球員市場開張`, text: `三個聯盟共有 ${freeAgents.length - posted} 名自由球員進入市場，另有 ${posted} 名日職、中職球員透過入札挑戰美職；你的球隊有 ${userExpiring.length} 名球員合約到期${postingRequests.length ? `，${postingRequests.length} 名球員提出入札請求` : ''}。`});
   return w;
@@ -154,6 +155,32 @@ export function setExpiringDecision(w, id, keep) {
   const row = w.offseason?.userExpiring.find(r => r.id === id);
   if (!row) throw new Error('找不到這名到期球員。');
   row.keep = !!keep;
+}
+/** The user's re-signing offer. He signs at completion if the salary meets his (hidden) floor. */
+export function setExpiringOffer(w, id, {salary, years}) {
+  const row = w.offseason?.userExpiring.find(r => r.id === id);
+  if (!row) throw new Error('找不到這名到期球員。');
+  if (salary != null) row.salary = Math.max(10000, Math.round(Number(salary) / 10000) * 10000);
+  if (years != null) row.years = clampYears(Number(years));
+  row.keep = true;
+  return row;
+}
+const clampYears = y => Math.max(1, Math.min(MAX_BID_YEARS, Math.round(y) || 1));
+/** Club-controlled young players get a raise toward their market price instead of free agency. */
+export function controlledSalary(s, p, league) {
+  const market = leagueSalary(p, league), now = salaryFor(s, p);
+  return Math.max(now, Math.round(market * .8 / 10000) * 10000);
+}
+/** Releases a player who is still under contract during the offseason: the rest of the deal is paid now. */
+export function releaseInOffseason(w, bases, id) {
+  const o = w.offseason; if (!o) throw new Error('目前不在休賽季。');
+  const s = userSeason(w), data = worldDatas(w, bases)[w.userLeague];
+  const r = releasePlayer(s, data, id), p = r.player;
+  o.bids && delete o.bids[id];
+  const age = o.year - Number(p.birth_date?.slice(0, 4) || 1998);
+  o.freeAgents.push({id: p.id, name: p.name, league: w.userLeague, teamId: 'FA', ovr: Math.round(overall(p)), age, position: p.position, origin: p.origin || 'INTL', pitcher: isPitcherOnly(p), value: marketSalary(p)});
+  o.freeAgents.sort((a, b) => b.ovr - a.ovr || a.name.localeCompare(b.name));
+  return r;
 }
 
 /** Checks a bid for the user's club. Returns {ok, reason}. */
@@ -197,18 +224,24 @@ export function completeOffseason(previous, bases) {
     for (const p of pools[id]) where.set(p.id, id);
   }
   const find = pid => pools[where.get(pid)].find(p => p.id === pid);
-  const contracts = Object.fromEntries(LEAGUE_ORDER.map(id => [id, {}]));
+  const contracts = Object.fromEntries(LEAGUE_ORDER.map(id => [id, {}])), salaries = Object.fromEntries(LEAGUE_ORDER.map(id => [id, {}]));
+  const refused = [];
   const signed = new Set();
   // 1. Contracts that continue lose a year; AI re-signings and the user's choices get new deals.
   for (const id of LEAGUE_ORDER) for (const p of pools[id]) {
     const left = w.leagues[id].contracts?.[p.id] ?? 1;
-    if (left > 1) contracts[id][p.id] = left - 1;
+    if (left > 1) { contracts[id][p.id] = left - 1; const sv = w.leagues[id]; salaries[id][p.id] = sv.pendingSalary?.[p.id] ?? sv.salaries?.[p.id] ?? leagueSalary(p, id); }
   }
-  for (const id of LEAGUE_ORDER) for (const pid of o.resigned[id]) contracts[id][pid] = contractLength(find(pid), year, random(user));
+  for (const id of LEAGUE_ORDER) for (const pid of o.resigned[id]) {
+    const p = find(pid); contracts[id][pid] = contractLength(p, year, random(user));
+    salaries[id][pid] = controlledSalary(w.leagues[id], p, id);
+  }
+  for (const r of o.userControlled || []) if (salaries[w.userLeague][r.id] != null) salaries[w.userLeague][r.id] = r.salary;
   const market = [...o.freeAgents];
   for (const r of o.userExpiring) {
-    if (r.keep) contracts[w.userLeague][r.id] = r.years;
-    else market.push({...r, keep: undefined});
+    const floor = r.floor ?? 0, salary = r.salary ?? leagueSalary(find(r.id), w.userLeague);
+    if (r.keep && salary >= floor) { contracts[w.userLeague][r.id] = r.years; salaries[w.userLeague][r.id] = salary; }
+    else { if (r.keep) refused.push(r); market.push({...r, keep: undefined}); }
   }
   for (const r of o.postingRequests || []) if (r.allow) market.push({...r, allow: undefined});
   market.sort((a, b) => b.ovr - a.ovr);
@@ -259,8 +292,8 @@ export function completeOffseason(previous, bases) {
     const moved = {...p, team_id: best.teamId, league: best.league};
     pools[best.league].push(moved); where.set(p.id, best.league);
     club.players.push(moved); club.signings++;
-    if (fromLeague !== best.league) delete contracts[fromLeague][p.id];
-    contracts[best.league][p.id] = best.years; signed.add(p.id);
+    if (fromLeague !== best.league) { delete contracts[fromLeague][p.id]; delete salaries[fromLeague][p.id]; }
+    contracts[best.league][p.id] = best.years; salaries[best.league][p.id] = leagueSalary(p, best.league); signed.add(p.id);
     const move = {id: p.id, name: p.name, ovr: fa.ovr, fromLeague: fa.league, fromTeam: fa.teamId, toLeague: best.league, toTeam: best.teamId, years: best.years, bonus: best.bonus, posting: !!fa.posting, returning: !!best.returning};
     moves.push(move);
     if (best.returning) returns.push(move);
@@ -295,13 +328,13 @@ export function completeOffseason(previous, bases) {
         const fromLeague = where.get(p.id);
         pools[fromLeague] = pools[fromLeague].filter(q => q.id !== p.id);
         departed.splice(departed.findIndex(r => r.id === p.id), 1);
-        delete contracts[fromLeague][p.id];
+        delete contracts[fromLeague][p.id]; delete salaries[fromLeague][p.id];
         p = {...p, team_id: teamId, league: club.league};
       } else {
         p = depthPlayer(club, teamId, need, year, ++fillSerial, user);
       }
       pools[club.league].push(p); where.set(p.id, club.league); club.players.push(p);
-      contracts[club.league][p.id] = 1;
+      contracts[club.league][p.id] = 1; salaries[club.league][p.id] = leagueSalary(p, club.league);
       fillers.push({id: p.id, name: p.name, teamId, league: club.league, need});
     }
   }
@@ -318,11 +351,13 @@ export function completeOffseason(previous, bases) {
     s.ownership = {};
     const next = advanceSeason(s, bases[id]);
     next.contracts = contracts[id];
+    next.salaries = salaries[id];
     ensureContracts(next, {players: next.playerPool});
     if (id !== w.userLeague) { next.aiOnly = true; trimAI(next); }
     leagues[id] = next;
   }
   const nextUser = leagues[w.userLeague];
+  for (const r of refused) addNews(nextUser, {category: 'trade', teamIds: [w.teamId], title: `${r.name} 拒絕續約`, text: `球團開價年薪 US$${(r.salary || 0).toLocaleString('en-US')}，低於他的期待，他選擇投入自由球員市場。`});
   const cross = moves.filter(m => m.fromLeague !== m.toLeague);
   nextUser.offseason.market = {userSigned, userLost, bonusPaid, feeIncome, moves: moves.slice(0, 40), cross: cross.slice(0, 40), departed: departed.length, total: moves.length, returns, postings};
   const myFill = fillers.filter(f => f.teamId === w.teamId);

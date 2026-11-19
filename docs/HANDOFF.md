@@ -49,3 +49,10 @@
 - engine.js：releaseCheck/releasePlayer（ownership 設為 'FA'，休賽季加入自由球員市場）、isImport/importCount/FOREIGN_LIMIT（交易檢查洋將上限）、autoLineup 可帶 bias、settleDay 記錄主場場次與觀眾並依輿情調整使用者主場觀眾。
 - 場外事件（offfield）改為四種輕微情節，使用 clubhouse 選項機制；舊存檔中尚未處理的虛構人物事件仍可照舊處理。
 - 被解職：season 結束時 board.result.fired；app 顯示 firedSection，takeJob 會改 w.teamId 與 s.teamId。
+
+## v1.9 合約
+
+- s.salaries：鎖定年薪（salaryFor(s,p)，缺值時退回 salaryOf 行情）；world.ensureContracts 補齊，completeOffseason 依續約、簽約、補人重建並交給下一季。s.pendingSalary：季中提前續約的新年薪，休賽季生效。
+- contractAsk/offerOutlook：開價與底線（每季固定）；setExpiringOffer 設定續約開價，completeOffseason 低於底線者進市場並發新聞。o.userControlled 列出自動續約的年輕球員與新年薪。
+- 休賽季：startOffseason 設 user.offseasonTrades=true，evaluateTrade/releaseCheck 據此開放；releaseInOffseason 付清剩餘合約並加入 o.freeAgents。
+- 季中自由球員：freeAgentPool（s.faPool，每週）、signCheck、signFreeAgent（寫入 s.playerPool，呼叫端需重建 data）。

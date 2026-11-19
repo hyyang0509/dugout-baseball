@@ -1,8 +1,8 @@
 // DUGOUT front office: team strength profile, league ranks, trade impact and the chief assistant.
 // Everything here reads the season; only hiring an assistant changes it (through hireAssistant).
 import {rosterFor, autoLineup, assignFielding, hasBat, hasPitch, batValue, pitchValue, defenseAt, ovr, potential, playerAge,
-  salaryOf, payroll, teamStrategy, untouchables, evaluateTrade, normOffer, tradeDeadline, idHash, moneyScale, teamOf, clamp, positionsOf, primaryPosition} from './engine.js?v=19';
-import {batLine, pitchLine, leagueBaselines, opsPlus, eraPlus} from './stats.js?v=19';
+  salaryOf, salaryFor, contractYears, payroll, teamStrategy, untouchables, evaluateTrade, normOffer, tradeDeadline, idHash, moneyScale, teamOf, clamp, positionsOf, primaryPosition} from './engine.js?v=20';
+import {batLine, pitchLine, leagueBaselines, opsPlus, eraPlus} from './stats.js?v=20';
 
 export const CATEGORIES = [
   {key: 'offense', label: '打擊火力', hint: '先發九人的整體打擊能力'},
@@ -148,11 +148,12 @@ export function assistantVerdict(s, data, input) {
   const strategy = teamStrategy(s, data, s.teamId), deadlineNear = tradeDeadline(s) - s.day <= 15;
   const ctxNow = strategy === 'contender' ? 1.3 : strategy === 'rebuilding' ? .6 : 1, ctxFuture = strategy === 'rebuilding' ? 1.4 : strategy === 'contender' ? .7 : 1;
   const sum = (list, fn) => list.reduce((x, p) => x + fn(p), 0);
-  const cashToUs = mine ? -o.cash : o.cash, salaryDelta = sum(inn, salaryOf) - sum(out, salaryOf), scale = moneyScale(s) || 1;
+  const cashToUs = mine ? -o.cash : o.cash, salaryDelta = sum(inn, p => salaryFor(s, p)) - sum(out, p => salaryFor(s, p)), scale = moneyScale(s) || 1;
+  const futureDelta = sum(inn, p => salaryFor(s, p) * Math.max(0, contractYears(s, p) - 1)) - sum(out, p => salaryFor(s, p) * Math.max(0, contractYears(s, p) - 1));
   const parts = {
     now: impact.delta * 1.6 * ctxNow * (deadlineNear && strategy === 'contender' ? 1.2 : 1),
     future: (sum(inn, p => futureScore(s, p)) - sum(out, p => futureScore(s, p))) * .5 * ctxFuture,
-    money: (cashToUs - salaryDelta * .6) / (2000000 * scale),
+    money: (cashToUs - salaryDelta * .6 - futureDelta * .3) / (2000000 * scale),
     stats: (sum(inn, p => statScore(s, p)) - sum(out, p => statScore(s, p))) * .6,
   };
   const noise = ((idHash(a.id, [...o.give, '|', ...o.get, o.cash].join(',')) % 1000) / 500 - 1) * (6 - a.skill) * .25;
@@ -166,7 +167,7 @@ export function assistantVerdict(s, data, input) {
   const voice = {
     analyst: () => parts.stats > .3 ? '換來的人本季數據明顯比較好，這不是運氣。' : parts.stats < -.3 ? '送走的人本季成績比較好，數據不支持這筆交易。' : '雙方本季數據差不多，樣本也還不大。',
     scout: () => parts.future > .4 ? '換來的人還年輕、有成長空間，我看好。' : parts.future < -.4 ? '你送走的是有潛力的年輕人，幾年後可能後悔。' : '雙方的年齡和潛力差不多。',
-    accountant: () => parts.money > .2 ? '這筆交易幫球團省錢或進帳。' : parts.money < -.2 ? `薪資多了 US$${Math.round(salaryDelta).toLocaleString('en-US')}，${cashToUs < 0 ? '還要倒貼現金，' : ''}老闆不會高興。` : '財務上影響不大。',
+    accountant: () => parts.money > .2 ? '這筆交易幫球團省錢或進帳。' : parts.money < -.2 ? `薪資多了 US$${Math.round(salaryDelta).toLocaleString('en-US')}${futureDelta > 0 ? `，之後幾年合約還要多背 US$${Math.round(futureDelta).toLocaleString('en-US')}` : ''}，${cashToUs < 0 ? '還要倒貼現金，' : ''}老闆不會高興。` : '財務上影響不大。',
     winnow: () => parts.now > .3 ? '今年就能多贏幾場，就做吧！' : parts.now < -.3 ? '這會讓我們現在變弱，我反對。' : '對今年的戰力幫助有限。',
   };
   reasons.push(voice[a.style]());
@@ -222,7 +223,7 @@ export function suggestTarget(s, data, key) {
     let best = null;
     for (const {p, t} of top) {
       const delta = tradeImpact(s, data, {targetTeam: t.id, give: [], get: [p.id]}).delta;
-      const cost = salaryOf(p) / (1000000 * (moneyScale(s) || 1));
+      const cost = salaryFor(s, p) / (1000000 * (moneyScale(s) || 1));
       const value = delta - cost * .05;
       if (delta > .2 && (!best || value > best.value)) best = {id: p.id, name: p.name, teamId: t.id, team: t.zh, ovr: ovr(p), delta, value};
     }
