@@ -1,13 +1,13 @@
-// World mode: MLB, NPB and CPBL run side by side in one save, on one rating scale.
+// World mode: MLB, NPB, KBO and CPBL run side by side in one save, on one rating scale.
 // Each league keeps its own season state (schedule, standings, playoffs); the user
 // manages one club and the other two leagues are fully simulated by the AI.
-import {makeSeason, nextDay, seasonData, migrateSeason, standings, overall, ovr, primaryPosition, hasBat, hasPitch, teamOf, addNews, VERSION, LEAGUE_SCALE, worldRating, salaryOf} from './engine.js?v=20';
+import {makeSeason, nextDay, seasonData, migrateSeason, standings, overall, ovr, primaryPosition, hasBat, hasPitch, teamOf, addNews, VERSION, LEAGUE_SCALE, worldRating, salaryOf} from './engine.js?v=21';
 
 export const WORLD_VERSION = 1;
 export const WORLD_KEY = 'dugout.world.v1';
-export const LEAGUE_ORDER = ['MLB', 'NPB', 'CPBL'];
-export const LEAGUE_NAME = {MLB: '美國職棒', NPB: '日本職棒', CPBL: '中華職棒'};
-export const LEAGUE_SHORT = {MLB: '美職', NPB: '日職', CPBL: '中職'};
+export const LEAGUE_ORDER = ['MLB', 'NPB', 'KBO', 'CPBL'];
+export const LEAGUE_NAME = {MLB: '美國職棒', NPB: '日本職棒', KBO: '韓國職棒', CPBL: '中華職棒'};
+export const LEAGUE_SHORT = {MLB: '美職', NPB: '日職', KBO: '韓職', CPBL: '中職'};
 
 // Realistic strength gap (LEAGUE_SCALE lives in the engine): NPB sits roughly a level
 // below MLB and CPBL another level below NPB, with a slightly narrower spread.
@@ -16,15 +16,17 @@ export {LEAGUE_SCALE, worldRating};
 // Where a player comes from decides who counts as a foreign player (洋將) and which
 // league feels like home in free agency. JPN -> NPB, TWN -> CPBL, everyone else -> MLB.
 const MLB_JPN = new Set(['Shohei Ohtani', 'Yoshinobu Yamamoto', 'Kodai Senga', 'Masataka Yoshida', 'Yusei Kikuchi', 'Roki Sasaki', 'Kazuma Okamoto', 'Munetaka Murakami', 'Tatsuya Imai', 'Yu Darvish', 'Shota Imanaga', 'Seiya Suzuki']);
-const MLB_TWN = new Set(['Tsung-Che Cheng']);
+const MLB_TWN = new Set(['Tsung-Che Cheng', 'Hao-Yu Lee']);
+const MLB_KOR = new Set(['Ha-Seong Kim', 'Jung Hoo Lee', 'Hyeseong Kim', 'Sung-Mun Song', 'Ji Hwan Bae', 'Woo-Suk Go']);
 const CPBL_JPN = new Set(['京山將彌', '大瀧幸治', '髙塩將樹', '鈴木駿輔', '榊原元稀', '永田颯太郎']);
 const CPBL_INTL = new Set(['勝騎士', '布雷克', '德保拉', '銳力獅', '鋼龍', '後勁', '魔力藍', '威能帝', '魔鷹', '魔神龍', '菲力士', '坎南', '獅帝芬', '威戈神', '魔爾曼', '瑪帝斯', '道威聖', '威克', '杰克', '悍里歐', '泰威', '威鳳山']);
-export const HOME_LEAGUE = {JPN: 'NPB', TWN: 'CPBL', INTL: 'MLB'};
+export const HOME_LEAGUE = {JPN: 'NPB', KOR: 'KBO', TWN: 'CPBL', INTL: 'MLB'};
 export function originOf(league, p) {
   if (p.origin) return p.origin;
   if (league === 'NPB') return /[\u30a0-\u30ff]/.test(p.source_name || '') ? 'INTL' : 'JPN';
+  if (league === 'KBO') return 'KOR';
   if (league === 'CPBL') return CPBL_JPN.has(p.name) ? 'JPN' : CPBL_INTL.has(p.name) ? 'INTL' : 'TWN';
-  return MLB_JPN.has(p.name) ? 'JPN' : MLB_TWN.has(p.name) ? 'TWN' : 'INTL';
+  return MLB_JPN.has(p.name) ? 'JPN' : MLB_TWN.has(p.name) ? 'TWN' : MLB_KOR.has(p.name) ? 'KOR' : 'INTL';
 }
 export const isForeign = (p, league) => league !== 'MLB' && HOME_LEAGUE[p.origin || 'INTL'] !== league;
 
@@ -163,6 +165,8 @@ export function finishWorld(w, datas, maxDays = 400) {
 /** Validates and migrates a parsed save. Throws with a readable message when unusable. */
 export function restoreWorld(parsed, bases) {
   if (parsed?.kind !== 'world' || parsed.worldVersion !== WORLD_VERSION || !LEAGUE_ORDER.includes(parsed.userLeague)) throw new Error('存檔格式不符');
+  // v2.0 added KBO: older saves get a KBO season that catches up with the user's league.
+  for (const id of LEAGUE_ORDER) if (!parsed.leagues?.[id] && bases[id]) addLeague(parsed, bases, id);
   for (const id of LEAGUE_ORDER) {
     const s = parsed.leagues?.[id];
     if (!s || !Array.isArray(s.schedule) || !s.teams || !s.condition || !['regular', 'playoffs', 'finished'].includes(s.phase)) throw new Error('存檔格式不符');
@@ -177,6 +181,13 @@ export function restoreWorld(parsed, bases) {
   parsed.digest ??= [];
   scouting(parsed);
   return parsed;
+}
+
+function addLeague(w, bases, id) {
+  const user = w.leagues[w.userLeague], s = makeSeason(bases[id], null, (idHash(id + w.createdAt) * 4294967296) >>> 0);
+  s.aiOnly = true; s.year = w.year || user.year; ensureContracts(s, bases[id]); w.leagues[id] = s;
+  const data = bases[id], target = user.phase === 'finished' || w.offseason ? Infinity : user.day;
+  for (let i = 0; i < 400 && s.phase !== 'finished' && s.day < target; i++) { nextDay(s, data, {}); s.event = null; trimAI(s); }
 }
 
 /** League standings for any league (read-only views). */
@@ -216,7 +227,7 @@ export {VERSION};
 // report. Reports take a few game days during the season (instant in the offseason)
 // and stay valid for the current and the following season.
 export const SCOUT_DAYS = 5, SCOUT_SLOTS = 3, SCOUT_BASE_COST = 40000;
-const SCOUT_PAY = {MLB: 1, NPB: 0.3, CPBL: 0.08};
+const SCOUT_PAY = {MLB: 1, NPB: 0.3, KBO: 0.15, CPBL: 0.08};
 
 export function scouting(w) {
   w.scouting ??= {known: {}, queue: []};

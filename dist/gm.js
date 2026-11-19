@@ -1,8 +1,8 @@
 // DUGOUT front office: team strength profile, league ranks, trade impact and the chief assistant.
 // Everything here reads the season; only hiring an assistant changes it (through hireAssistant).
 import {rosterFor, autoLineup, assignFielding, hasBat, hasPitch, batValue, pitchValue, defenseAt, ovr, potential, playerAge,
-  salaryOf, salaryFor, contractYears, payroll, teamStrategy, untouchables, evaluateTrade, normOffer, tradeDeadline, idHash, moneyScale, teamOf, clamp, positionsOf, primaryPosition} from './engine.js?v=20';
-import {batLine, pitchLine, leagueBaselines, opsPlus, eraPlus} from './stats.js?v=20';
+  salaryOf, salaryFor, g100, g100delta, contractYears, payroll, teamStrategy, untouchables, evaluateTrade, normOffer, tradeDeadline, idHash, moneyScale, teamOf, clamp, positionsOf, primaryPosition} from './engine.js?v=21';
+import {batLine, pitchLine, leagueBaselines, opsPlus, eraPlus} from './stats.js?v=21';
 
 export const CATEGORIES = [
   {key: 'offense', label: '打擊火力', hint: '先發九人的整體打擊能力'},
@@ -97,6 +97,7 @@ export const ASSISTANT_STYLES = {
 const NAMES = {
   MLB: ['Walt Brennan', 'Dee Morales', 'Hank Sutter', 'Rosa Klein', 'Gus Whitaker', 'Nina Park', 'Lou Castillo', 'Ben Archer'],
   NPB: ['高橋健司', '山本美咲', '佐藤剛', '中村直樹', '渡辺陽子', '小川誠', '木村浩二', '藤田真理'],
+  KBO: ['韓志勳', '吳成民', '林在賢', '宋旻浩', '黃承佑', '申東赫', '徐俊英', '柳在明'],
   CPBL: ['陳志明', '林雅婷', '黃建勳', '張家瑋', '李宗憲', '吳佩珊', '王俊傑', '劉育誠'],
 };
 const STYLE_KEYS = Object.keys(ASSISTANT_STYLES);
@@ -163,7 +164,7 @@ export function assistantVerdict(s, data, input) {
   const reasons = [];
   const strengthCat = impact.cats.find(c => c.key === 'strength');
   const moved = impact.cats.filter(c => c.key !== 'strength' && Math.abs(c.after - c.before) >= .6).sort((x, y) => Math.abs(y.after - y.before) - Math.abs(x.after - x.before)).slice(0, 2);
-  reasons.push(`整體戰力 ${impact.delta >= 0 ? '+' : ''}${impact.delta.toFixed(1)}，聯盟排名 ${strengthCat.rankBefore} → ${strengthCat.rankAfter}。${moved.map(c => `${c.label}${c.after > c.before ? '變強' : '變弱'}（第 ${c.rankBefore} → ${c.rankAfter} 名）`).join('，')}${moved.length ? '。' : ''}`);
+  reasons.push(`整體戰力 ${impact.delta >= 0 ? '+' : ''}${g100delta(impact.delta).toFixed(1)}，聯盟排名 ${strengthCat.rankBefore} → ${strengthCat.rankAfter}。${moved.map(c => `${c.label}${c.after > c.before ? '變強' : '變弱'}（第 ${c.rankBefore} → ${c.rankAfter} 名）`).join('，')}${moved.length ? '。' : ''}`);
   const voice = {
     analyst: () => parts.stats > .3 ? '換來的人本季數據明顯比較好，這不是運氣。' : parts.stats < -.3 ? '送走的人本季成績比較好，數據不支持這筆交易。' : '雙方本季數據差不多，樣本也還不大。',
     scout: () => parts.future > .4 ? '換來的人還年輕、有成長空間，我看好。' : parts.future < -.4 ? '你送走的是有潛力的年輕人，幾年後可能後悔。' : '雙方的年齡和潛力差不多。',
@@ -192,11 +193,11 @@ function buildReport(s, data) {
   if (rep.emergency.length) items.push({tone: 'bad', text: '有守位找不到合適的人，只能讓球員緊急代守，守備打很大折扣。建議補一名能守該位置的球員。', action: {type: 'nav', page: 'roster'}});
   if (s.phase === 'regular' && left > 0) {
     const weak = rep.weaknesses[0], target = suggestTarget(s, data, weak.key);
-    if (target && (strategy !== 'rebuilding' || a.style === 'winnow')) items.push({tone: 'neutral', text: `${weak.label}是最大缺口。可以看看 ${target.team} 的 ${target.name}（總評 ${target.ovr}）：換來後整體戰力 +${target.delta.toFixed(1)}。`, action: {type: 'trade', targetTeam: target.teamId, get: [target.id]}});
+    if (target && (strategy !== 'rebuilding' || a.style === 'winnow')) items.push({tone: 'neutral', text: `${weak.label}是最大缺口。可以看看 ${target.team} 的 ${target.name}（總評 ${g100(target.ovr)}）：換來後整體戰力 +${g100delta(target.delta).toFixed(1)}。`, action: {type: 'trade', targetTeam: target.teamId, get: [target.id]}});
     if (strategy === 'contender' && left <= 15) items.push({tone: 'neutral', text: `離交易截止只剩 ${left} 天，我們在爭冠行列，${a.style === 'accountant' ? '補強可以，但別亂花錢。' : '現在是補強的最後機會。'}`});
     if (strategy === 'rebuilding' && left <= 20) {
       const vet = rosterFor(s, data, s.teamId).filter(p => playerAge(s, p) >= 31 && !s.condition[p.id].injury).sort((x, y) => ovr(y) - ovr(x))[0];
-      if (vet) items.push({tone: 'neutral', text: `球隊在重建，${vet.name}（${playerAge(s, vet)} 歲、總評 ${ovr(vet)}）趁截止前賣給爭冠隊，可以換到年輕球員。`, action: {type: 'trade', give: [vet.id]}});
+      if (vet) items.push({tone: 'neutral', text: `球隊在重建，${vet.name}（${playerAge(s, vet)} 歲、總評 ${g100(ovr(vet))}）趁截止前賣給爭冠隊，可以換到年輕球員。`, action: {type: 'trade', give: [vet.id]}});
     }
   }
   const f = s.finance[s.teamId], pay = payroll(s, data, s.teamId);

@@ -33,7 +33,7 @@ test('a full offseason: market opens, bids resolve, players cross leagues, new y
   const o = O.startOffseason(w, bases);
   assert.ok(W.worldFinished(o));
   assert.ok(o.offseason.freeAgents.length > 50);
-  assert.ok(o.offseason.freeAgents.every(r => r.age > 26), 'young players stay under club control');
+  assert.ok(o.offseason.freeAgents.every(r => r.age > 26 || r.posting), 'young players stay under club control (posting requests aside)');
   assert.ok(!w.offseason, 'input world untouched');
   const datas = W.worldDatas(o, bases);
   // Release the club's foreign players so a foreign signing fits under the quota, then bid big.

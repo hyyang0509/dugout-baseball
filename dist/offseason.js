@@ -1,17 +1,18 @@
 // World offseason: expiring contracts, a cross-league free-agent market, foreign-player
 // quotas, then the usual aging/retirement/rookie rollover for every league.
-import {advanceSeason, contractAsk, releasePlayer, salaryFor, overall, hasBat, hasPitch, teamOf, random, addNews, salaryOf, marketSalary, LEAGUE_PAY, teamStrategy, playerAge, positionsOf, worldRating} from './engine.js?v=20';
-import {LEAGUE_ORDER, LEAGUE_NAME, HOME_LEAGUE, isForeign, userSeason, worldDatas, finishWorld, ensureContracts, trimAI} from './world.js?v=20';
+import {advanceSeason, contractAsk, releasePlayer, salaryFor, overall, hasBat, hasPitch, teamOf, random, addNews, salaryOf, marketSalary, LEAGUE_PAY, teamStrategy, playerAge, positionsOf, worldRating} from './engine.js?v=21';
+import {LEAGUE_ORDER, LEAGUE_NAME, HOME_LEAGUE, isForeign, userSeason, worldDatas, finishWorld, ensureContracts, trimAI} from './world.js?v=21';
 
 // How attractive a league is to a free agent, on top of the money.
-export const LEAGUE_PRESTIGE = {MLB: 1, NPB: 0.75, CPBL: 0.55};
+// v2.0: gaps narrowed so more players cross leagues.
+export const LEAGUE_PRESTIGE = {MLB: 1, NPB: 0.82, KBO: 0.74, CPBL: 0.64};
 // Playing in your home country's league is worth a lot to most players.
-export const HOME_BONUS = 1.6;
+export const HOME_BONUS = 1.35;
 // Most foreign players a club may sign up to (existing rosters above it are grandfathered).
-export const FOREIGN_QUOTA = {NPB: 10, CPBL: 6};
+export const FOREIGN_QUOTA = {NPB: 10, KBO: 4, CPBL: 6};
 // Expiring players below this world-scale level re-sign quietly as depth.
-const MARKET_FLOOR = {MLB: 46, NPB: 42, CPBL: 36};
-const MAX_AI_SIGNINGS = 3, MAX_BID_YEARS = 4;
+const MARKET_FLOOR = {MLB: 46, NPB: 43, KBO: 41, CPBL: 39};
+const MAX_AI_SIGNINGS = 4, MAX_BID_YEARS = 4;
 // Posting (入札): NPB/CPBL stars under contract may ask to move to MLB.
 export const POSTING_MIN = 53, POSTING_FEE = 0.2;
 const POST_APPROVE = {rebuilding: 0.8, balanced: 0.5, contender: 0.35};
@@ -64,6 +65,7 @@ export function rosterShortage(players) {
 const DEPTH_NAMES = {
   MLB: [['Matt', 'Kyle', 'Derek', 'Nick', 'Sam', 'Eric', 'Adam', 'Zach'], ['Baker', 'Scott', 'Price', 'Reed', 'Hayes', 'Ward', 'Cruz', 'Ortiz']],
   NPB: [['松田', '中島', '石川', '岡田', '森', '池田', '橋本', '藤井'], ['翼', '亮', '誠', '聖也', '大地', '海斗', '樹', '駿']],
+  KBO: [['金', '李', '朴', '崔', '鄭', '姜', '趙', '尹'], ['俊浩', '賢宇', '成珉', '在勳', '東炫', '承佑', '泰俊', '志勳']],
   CPBL: [['林', '陳', '黃', '張', '李', '王', '吳', '劉'], ['冠宇', '柏翰', '家豪', '志偉', '俊傑', '建宏', '承恩', '宗翰']],
 };
 function depthPlayer(club, teamId, need, year, serial, rngState) {
@@ -77,7 +79,7 @@ function depthPlayer(club, teamId, need, year, serial, rngState) {
     : {contact: local(), power: local(), eye: local(), speed: 45, defense: 45 + Math.floor(random(rngState) * 6)};
   for (const k of Object.keys(ratings)) ratings[k] = worldRating(league, k, ratings[k]);
   const age = 24 + Math.floor(random(rngState) * 6);
-  return {id: `depth:${year}:${teamId}:${serial}`, name: `${name}（補強球員）`, team_id: teamId, league, origin: {NPB: 'JPN', CPBL: 'TWN'}[league] || 'INTL',
+  return {id: `depth:${year}:${teamId}:${serial}`, name: `${name}（補強球員）`, team_id: teamId, league, origin: {NPB: 'JPN', KBO: 'KOR', CPBL: 'TWN'}[league] || 'INTL',
     position, positions: pitcher ? ['P'] : position === 'DH' ? ['DH'] : [position, 'DH'], role: pitcher ? 'RP' : null, ratings,
     birth_date: `${year - age}-04-01`, bats: 'R', throws: 'R', jersey_number: String(60 + serial % 39), status: 'Active', simulated: true};
 }
@@ -121,9 +123,9 @@ export function startOffseason(previous, bases) {
       const ovr = Math.round(overall(p)), age = year - Number(p.birth_date?.slice(0, 4) || 1998);
       freeAgents.push({id: p.id, name: p.name, league: w.userLeague, teamId: 'FA', ovr, age, position: p.position, origin: p.origin || 'INTL', pitcher: isPitcherOnly(p), value: marketSalary(p)});
     } }
-  // Posting requests from NPB/CPBL natives who are still under contract.
+  // Posting requests from NPB/KBO/CPBL natives who are still under contract.
   const postingRequests = [];
-  for (const id of ['NPB', 'CPBL']) {
+  for (const id of ['NPB', 'KBO', 'CPBL']) {
     const s = w.leagues[id], data = datas[id];
     for (const t of data.teams) {
       const strategy = teamStrategy(s, data, t.id);
@@ -131,7 +133,7 @@ export function startOffseason(previous, bases) {
         if ((s.contracts[p.id] ?? 1) <= 1 || HOME_LEAGUE[p.origin || 'INTL'] !== id) continue;
         const ovr = Math.round(overall(p)), age = year - Number(p.birth_date?.slice(0, 4) || 1998);
         if (ovr < POSTING_MIN || age < 22 || age > 31) continue;
-        if (random(user) > (ovr >= 57 ? 0.55 : 0.3)) continue;
+        if (random(user) > (ovr >= 57 ? 0.65 : 0.4)) continue;
         const entry = {id: p.id, name: p.name, league: id, teamId: t.id, ovr, age, position: p.position, origin: p.origin || 'INTL', pitcher: isPitcherOnly(p), value: marketSalary(p), posting: true};
         if (id === w.userLeague && t.id === w.teamId) postingRequests.push({...entry, allow: false});
         else if (random(user) < POST_APPROVE[strategy]) freeAgents.push(entry);
@@ -141,7 +143,7 @@ export function startOffseason(previous, bases) {
   freeAgents.sort((a, b) => b.ovr - a.ovr || a.name.localeCompare(b.name));
   w.offseason = {year, freeAgents, resigned, userExpiring, userControlled, postingRequests, bids: {}};
   const posted = freeAgents.filter(r => r.posting).length;
-  addNews(user, {category: 'world', teamIds: [], title: `${year} 休賽季開始：自由球員市場開張`, text: `三個聯盟共有 ${freeAgents.length - posted} 名自由球員進入市場，另有 ${posted} 名日職、中職球員透過入札挑戰美職；你的球隊有 ${userExpiring.length} 名球員合約到期${postingRequests.length ? `，${postingRequests.length} 名球員提出入札請求` : ''}。`});
+  addNews(user, {category: 'world', teamIds: [], title: `${year} 休賽季開始：自由球員市場開張`, text: `四個聯盟共有 ${freeAgents.length - posted} 名自由球員進入市場，另有 ${posted} 名日職、中職球員透過入札挑戰美職；你的球隊有 ${userExpiring.length} 名球員合約到期${postingRequests.length ? `，${postingRequests.length} 名球員提出入札請求` : ''}。`});
   return w;
 }
 
@@ -278,7 +280,7 @@ export function completeOffseason(previous, bases) {
       if (fa.posting) { postings.push({...fa, sold: false}); continue; } // stays with his club
       // Players abroad with no offer go home instead of leaving baseball.
       const home = HOME_LEAGUE[p.origin || 'INTL'];
-      if (home !== fa.league && home !== 'MLB' && (home === 'NPB' || home === 'CPBL')) {
+      if (home !== fa.league && home !== 'MLB' && (home === 'NPB' || home === 'KBO' || home === 'CPBL')) {
         const to = homeClub(home, p.origin);
         if (to) offers.push({teamId: to, league: home, bonus: 0, years: 1 + Math.floor(random(user) * 2), returning: true});
       }
@@ -359,7 +361,7 @@ export function completeOffseason(previous, bases) {
   const nextUser = leagues[w.userLeague];
   for (const r of refused) addNews(nextUser, {category: 'trade', teamIds: [w.teamId], title: `${r.name} 拒絕續約`, text: `球團開價年薪 US$${(r.salary || 0).toLocaleString('en-US')}，低於他的期待，他選擇投入自由球員市場。`});
   const cross = moves.filter(m => m.fromLeague !== m.toLeague);
-  nextUser.offseason.market = {userSigned, userLost, bonusPaid, feeIncome, moves: moves.slice(0, 40), cross: cross.slice(0, 40), departed: departed.length, total: moves.length, returns, postings};
+  nextUser.offseason.market = {userSigned, userLost, bonusPaid, feeIncome, moves: moves.slice(0, 40), cross: cross.slice(0, 40), departed: departed.length, total: moves.length, crossTotal: cross.length, returns, postings};
   const myFill = fillers.filter(f => f.teamId === w.teamId);
   if (myFill.length) addNews(nextUser, {category: 'trade', teamIds: [w.teamId], title: '補強板凳深度', text: `名單守位或人數不足，球團簽下：${myFill.map(f => f.name).join('、')}（一年約）。`});
   for (const r of postings) addNews(nextUser, {category: 'world', teamIds: r.teamId === w.teamId ? [w.teamId] : [], title: r.sold ? `入札成功：${r.name} 加盟${teamName('MLB', r.move.toTeam)}` : `入札無人得標：${r.name} 留在${teamName(r.league, r.teamId)}`, text: r.sold ? `${teamName(r.league, r.teamId)}收到轉隊費 US$${r.move.fee.toLocaleString('en-US')}。${r.move.years} 年合約。` : '沒有美職球隊出價，合約照舊。'});
