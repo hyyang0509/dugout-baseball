@@ -1,7 +1,7 @@
 // World offseason: expiring contracts, a cross-league free-agent market, foreign-player
 // quotas, then the usual aging/retirement/rookie rollover for every league.
-import {advanceSeason, overall, hasBat, hasPitch, teamOf, random, addNews, salaryOf, marketSalary, LEAGUE_PAY, teamStrategy, playerAge, positionsOf, worldRating} from './engine.js?v=18';
-import {LEAGUE_ORDER, LEAGUE_NAME, HOME_LEAGUE, isForeign, userSeason, worldDatas, finishWorld, ensureContracts, trimAI} from './world.js?v=18';
+import {advanceSeason, overall, hasBat, hasPitch, teamOf, random, addNews, salaryOf, marketSalary, LEAGUE_PAY, teamStrategy, playerAge, positionsOf, worldRating} from './engine.js?v=19';
+import {LEAGUE_ORDER, LEAGUE_NAME, HOME_LEAGUE, isForeign, userSeason, worldDatas, finishWorld, ensureContracts, trimAI} from './world.js?v=19';
 
 // How attractive a league is to a free agent, on top of the money.
 export const LEAGUE_PRESTIGE = {MLB: 1, NPB: 0.75, CPBL: 0.55};
@@ -114,6 +114,12 @@ export function startOffseason(previous, bases) {
       });
     }
   }
+  // Players the user released during the season are on the open market.
+  { const s = w.leagues[w.userLeague], data = datas[w.userLeague];
+    for (const p of data.players) if (teamOf(s, p) === 'FA') {
+      const ovr = Math.round(overall(p)), age = year - Number(p.birth_date?.slice(0, 4) || 1998);
+      freeAgents.push({id: p.id, name: p.name, league: w.userLeague, teamId: 'FA', ovr, age, position: p.position, origin: p.origin || 'INTL', pitcher: isPitcherOnly(p), value: marketSalary(p)});
+    } }
   // Posting requests from NPB/CPBL natives who are still under contract.
   const postingRequests = [];
   for (const id of ['NPB', 'CPBL']) {

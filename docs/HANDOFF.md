@@ -42,3 +42,10 @@
 
 - dist/gm.js：teamProfile（能力計算的戰力剖面，可帶 moves 做假設交易）、leagueProfiles（依日/交易/傷兵快取的聯盟排名）、teamReport、tradeImpact、首席助理（assistantOf/assistantVerdict/assistantReport/suggestTarget/hireAssistant）。助理存於 s.assistant，advanceSeason 帶入下一季。
 - engine.js 交易：offer 改為 {targetTeam, give[], get[], cash}，cash 正數為提案方付、負數為對方付；normOffer 相容舊的 giveId/getId。packageValue 依 1／0.55／0.3 遞減。現金價值依 moneyScale 換算。tradeLog 同時保存 give/get 陣列與 giveId/getId。
+
+## v1.8 GM 模式
+
+- dist/front.js：總教練（s.manager，套用 starterLimit/lineupBias 到使用者球隊）、董事會（s.board，依季重建目標，信任度同隊沿用）、GM 紀錄與稱號（s.gm）、鄉民輿情（s.fans）。透過 engine.HOOKS（globalThis 共用）接上每日結算、交易前與釋出；AI 聯盟（aiOnly）不跑。advanceSeason 會帶上 gm/board/fans/manager。
+- engine.js：releaseCheck/releasePlayer（ownership 設為 'FA'，休賽季加入自由球員市場）、isImport/importCount/FOREIGN_LIMIT（交易檢查洋將上限）、autoLineup 可帶 bias、settleDay 記錄主場場次與觀眾並依輿情調整使用者主場觀眾。
+- 場外事件（offfield）改為四種輕微情節，使用 clubhouse 選項機制；舊存檔中尚未處理的虛構人物事件仍可照舊處理。
+- 被解職：season 結束時 board.result.fired；app 顯示 firedSection，takeJob 會改 w.teamId 與 s.teamId。
