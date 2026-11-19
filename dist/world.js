@@ -1,7 +1,7 @@
 // World mode: MLB, NPB and CPBL run side by side in one save, on one rating scale.
 // Each league keeps its own season state (schedule, standings, playoffs); the user
 // manages one club and the other two leagues are fully simulated by the AI.
-import {makeSeason, nextDay, seasonData, migrateSeason, standings, overall, hasBat, hasPitch, teamOf, addNews, VERSION, LEAGUE_SCALE, worldRating} from './engine.js?v=16';
+import {makeSeason, nextDay, seasonData, migrateSeason, standings, overall, ovr, primaryPosition, hasBat, hasPitch, teamOf, addNews, VERSION, LEAGUE_SCALE, worldRating} from './engine.js?v=17';
 
 export const WORLD_VERSION = 1;
 export const WORLD_KEY = 'dugout.world.v1';
@@ -191,7 +191,7 @@ export function worldTop(w, datas, {limit = 20, kind = 'all'} = {}) {
       if (kind === 'pitch' && !hasPitch(p)) continue;
       const teamId = teamOf(s, p);
       if (!teamId) continue;
-      rows.push({id: p.id, name: p.name, league: id, teamId, team: data.teams.find(t => t.id === teamId)?.zh || '', position: p.position, ovr: Math.round(overall(p))});
+      rows.push({id: p.id, name: p.name, league: id, teamId, team: data.teams.find(t => t.id === teamId)?.zh || '', position: hasBat(p) ? primaryPosition(p) : (p.role || 'P'), ovr: ovr(p)});
     }
   }
   return rows.sort((a, b) => b.ovr - a.ovr || a.name.localeCompare(b.name)).slice(0, limit);
@@ -240,7 +240,7 @@ export function ratingView(w, p, league, key) {
   return {known: false, low: Math.max(20, c - 4), high: Math.min(80, c + 4)};
 }
 export function ovrView(w, p, league) {
-  const v = Math.round(overall(p));
+  const v = ovr(p);
   if (isKnown(w, p, league)) return {known: true, value: v};
   return {known: false, value: Math.round((v + fuzz(p.id, 'ovr')) / 5) * 5};
 }

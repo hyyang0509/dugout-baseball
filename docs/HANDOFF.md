@@ -21,7 +21,7 @@
 3. 多聯盟統一球員 ID、資料格式、賽制與能力尺度，再做跨聯盟交流。
 4. CPBL/NPB 官方快照已加入並可獨立開季；KBO 與跨聯盟尚未實作。能力暫為遊戲平衡值，詳見 README。
 
-初始名單為 2026/10/30 MLB 快照，非即時。新人均為虛構。RA9 不是 ERA。投打統計含季後賽，團隊勝負只計例行賽。
+初始名單為 2026/10/30 MLB 快照，非即時。新人均為虛構。v1.6 起投手統計含自責分（ERA）、勝敗、救援、中繼與救援失敗；舊存檔的既有失分視為自責分，勝敗等從升級當天（state.decisionStatsFrom）起計。投打統計含季後賽，團隊勝負只計例行賽。
 
 ## v0.7 三聯盟
 
@@ -30,3 +30,10 @@
 - 30 隊賽程算法保留；6/12 隊用循環賽與 Euler 定向產生 81 場，主客各 40/41 場。
 - fetch_asia_rosters.py 可重建官方名單，遇缺隊、重複 ID、不完整守位會失敗；npb_names_zh.json 保存中文音譯對照。
 - 47 項測試包括兩新聯盟的完整球季、換季、存檔 hydrate、交易、姓名與賽程。
+
+## v1.6 數據與守位
+
+- engine.js：positionProfile/positionsOf 回傳主守位＋可兼守位＋DH；日職 IF/OF 依球員 ID 與守備＋速度決定主守位，換季時寫回 p.position 固定。defenseAt 依守位打折；assignFielding 湊不齊九個守位時才允許緊急守位（捕手除外），無偏好時以兩兩交換提高總守備。
+- ovr/potential：畫面上的總評（含主守位守備）與潛力；交易與財務仍用 overall。
+- simulateGame 記錄自責分、二三壘安打、被全壘打、先發、勝敗、救援、中繼、救援失敗、優質先發（recordDecisions）；game.decisions 記本場勝敗救援。
+- dist/stats.js：batLine/pitchLine、OPS+/ERA+、可排序表格欄位與 statRows。

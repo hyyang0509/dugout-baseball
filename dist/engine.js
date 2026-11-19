@@ -1,5 +1,5 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=16';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=17';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
 export const VERSION=5;
 export const SEASON_GAMES=81;
@@ -51,16 +51,77 @@ function smallLeagueSchedule(ids){
 export const FIELD_POSITIONS=['C','1B','2B','3B','SS','LF','CF','RF','DH'];
 export const teamOf=(s,p)=>s.ownership?.[p.id]||p.team_id;
 export const rosterFor=(s,data,id)=>data.players.filter(p=>teamOf(s,p)===id);
-export const positionsOf=p=>p.positions||[p.position,...(hasBat(p)&&p.position!=='DH'?['DH']:[])];
-export function assignFielding(ids,data,preferred={},scores={}){
- const byId=Object.fromEntries(data.players.map(p=>[p.id,p]));const assigned={};
- const slots=[...FIELD_POSITIONS].sort((a,b)=>ids.filter(id=>positionsOf(byId[id]).includes(a)).length-ids.filter(id=>positionsOf(byId[id]).includes(b)).length);
+// ---- Positions: primary + familiar secondary spots. Every batter can also DH.
+// Secondary spots follow the defensive spectrum; MLB keeps its observed positions too.
+const DEF_SPOTS=['C','1B','2B','3B','SS','LF','CF','RF'];
+const SECONDARY={C:['1B'],'1B':['LF','RF'],'2B':['SS','3B'],'3B':['1B','2B'],SS:['2B','3B'],LF:['RF','1B'],CF:['LF','RF'],RF:['LF','1B'],DH:['1B']};
+// Defensive cost of a move: harder moves (toward C/SS/CF) cost more.
+const MOVE_COST={C:12,SS:6,CF:6,'2B':4,'3B':3,'1B':1,LF:1,RF:1};
+export function idHash(id,salt=''){let h=2166136261;for(const ch of String(id)+'|'+salt){h^=ch.codePointAt(0);h=Math.imul(h,16777619);}return h>>>0;}
+function pickPrimary(p,options){
+ // Spread generic IF/OF listings across spots: mostly a fixed per-player roll, nudged by range (defense + speed).
+ const center=100+(LEAGUE_SCALE[p.league]?.shift||0),r=p.ratings;
+ const roll=idHash(p.id,'primary')%100+((r.defense||50)+(r.speed||50)-center)*2.5;
+ const infield=options.some(x=>['1B','2B','3B','SS'].includes(x));
+ const order=infield?(roll>=75?['SS','2B','3B','1B']:roll>=50?['2B','SS','3B','1B']:roll>=25?['3B','1B','2B','SS']:['1B','3B','2B','SS']):(roll>=67?['CF','RF','LF']:roll>=33?['RF','LF','CF']:['LF','RF','CF']);
+ return order.find(x=>options.includes(x))||options[0];
+}
+const positionMemo=new WeakMap();
+export function positionProfile(p){
+ let v=positionMemo.get(p);if(v)return v;
+ if(!hasBat(p)){v={primary:'P',secondary:[],list:p.positions?.length?[...p.positions]:['P']};positionMemo.set(p,v);return v;}
+ const listed=(p.positions||[p.position]).filter(x=>DEF_SPOTS.includes(x)||x==='DH');
+ let primary=p.position;const specific=DEF_SPOTS.includes(primary)||primary==='DH';
+ if(!specific){const fieldOpts=listed.filter(x=>DEF_SPOTS.includes(x));primary=fieldOpts.length?pickPrimary(p,fieldOpts):'DH';}
+ // Specific listings keep every recorded spot; generic IF/OF group listings only keep the chosen spot.
+ const observed=specific?listed.filter(x=>x!=='DH'&&x!==primary):[];
+ const secondary=[...new Set([...observed,...(SECONDARY[primary]||[])])].filter(x=>x!==primary&&x!=='DH');
+ v={primary,secondary,list:[...new Set([primary,...secondary,'DH'])]};positionMemo.set(p,v);return v;
+}
+export const positionsOf=p=>positionProfile(p).list;
+/** Positions shown to the player: primary first, DH only when it is the primary job. */
+export const positionLabel=p=>{if(!hasBat(p))return p.role||'P';const v=positionProfile(p);return v.secondary.length?`${v.primary}（${v.secondary.join('/')}）`:v.primary;};
+export const primaryPosition=p=>positionProfile(p).primary;
+/** Fielding rating at a spot: full at primary, small penalty at familiar spots, large when out of position. */
+export function defenseAt(p,pos){
+ const d=p.ratings.defense||45;if(pos==='DH')return null;const v=positionProfile(p);
+ if(pos===v.primary)return d;if(v.secondary.includes(pos))return d-Math.ceil((MOVE_COST[pos]||2)/2);return d-10-(MOVE_COST[pos]||2);
+}
+const OVR_DEF_WEIGHT={C:.3,SS:.3,CF:.28,'2B':.25,'3B':.22,LF:.15,RF:.17,'1B':.12};
+/** Overall rating shown to players: hitting plus fielding at the primary spot, or pitching. */
+export function ovr(p){
+ const bat=hasBat(p)?(()=>{const pos=primaryPosition(p);if(pos==='DH')return batValue(p)-2;const w=OVR_DEF_WEIGHT[pos]??.15;return batValue(p)*(1-w)+(p.ratings.defense||45)*w;})():0;
+ const arm=hasPitch(p)?(p.role==='SP'?pitchValue(p)*.92+(p.ratings.stamina||50)*.08:pitchValue(p)):0;
+ return Math.round(Math.max(bat,arm));
+}
+/** Development ceiling: fixed per player, only meaningful for young players. */
+export function developmentCeiling(p){return p.developmentPotential??clamp(Math.round(overall(p))+4+idHash(p.id,'pot')%9,45,80);}
+export function potential(p,s){
+ const now=ovr(p),age=playerAge(s,p),room=Math.max(0,developmentCeiling(p)-overall(p));
+ return Math.round(now+(age<=24?room:age<=27?room*.5:0));
+}
+export function assignFielding(ids,data,preferred={},scores={},opts={}){
+ const byId=Object.fromEntries(data.players.map(p=>[p.id,p]));
+ const can=(id,pos)=>positionsOf(byId[id]).includes(pos)||(opts.emergency&&pos!=='C'&&hasBat(byId[id]));
+ const fitScore=(id,pos)=>(scores[id]??batValue(byId[id]))-(pos==='DH'||pos===primaryPosition(byId[id])?0:positionsOf(byId[id]).includes(pos)?3:12);
+ const assigned={};
+ const slots=[...FIELD_POSITIONS].sort((a,b)=>ids.filter(id=>can(id,a)).length-ids.filter(id=>can(id,b)).length);
  function place(pos,seen){
-  const candidates=ids.filter(id=>positionsOf(byId[id]).includes(pos)).sort((a,b)=>(preferred[b]===pos)-(preferred[a]===pos)||(scores[b]??batValue(byId[b]))-(scores[a]??batValue(byId[a])));
+  const candidates=ids.filter(id=>can(id,pos)).sort((a,b)=>(preferred[b]===pos)-(preferred[a]===pos)||fitScore(b,pos)-fitScore(a,pos));
   for(const id of candidates){if(seen.has(id))continue;seen.add(id);const old=assigned[id];if(!old||place(old,seen)){assigned[id]=pos;return true;}}
   return false;
  }
- for(const pos of slots)if(!place(pos,new Set()))return null;
+ for(const pos of slots)if(!place(pos,new Set()))return opts.emergency||opts.strict?null:assignFielding(ids,data,preferred,scores,{emergency:true});
+ // Without manager preferences, swap pairs while it improves total fielding (keeps a gold-glove SS off DH).
+ if(!Object.keys(preferred).length){
+  const value=(id,pos)=>pos==='DH'?0:(defenseAt(byId[id],pos)??0)*(1+(OVR_DEF_WEIGHT[pos]||.15));
+  const chosen=Object.keys(assigned);
+  for(let round=0,better=true;better&&round<20;round++){better=false;
+   for(let i=0;i<chosen.length;i++)for(let j=i+1;j<chosen.length;j++){const a=chosen[i],b=chosen[j],pa=assigned[a],pb=assigned[b];
+    if(!can(a,pb)||!can(b,pa))continue;
+    if(value(a,pb)+value(b,pa)>value(a,pa)+value(b,pb)+.5){assigned[a]=pb;assigned[b]=pa;better=true;}}
+  }
+ }
  return assigned;
 }
 export function lineupValue(p,c={}){return batValue(p)*(1+(c.form||0)*.09)-Math.max(0,75-(c.energy??100))*.5;}
@@ -86,8 +147,9 @@ export function makeSeason(data,teamId,seed=Date.now()){
  teams[t.id]={w:0,l:0,rs:0,ra:0,lineup:autoLineup(roster),rotation:pitchers.slice(0,5).map(p=>p.id)};}
  return migrateSeason({league:data.league||'MLB',...(data.world?{world:true}:{}),version:VERSION,dataVersion:data.generated_at,teamId,rng:(seed>>>0)||1234567,day:0,phase:'regular',schedule:makeSchedule(data.teams.map(t=>t.id)),teams,condition,batting:{},pitching:{},history:[],lastGame:null,event:null,eventLog:[],playoffs:null,champion:null,createdAt:new Date().toISOString()},data);
 }
-function batting(s,id){return s.batting[id]??=( {g:0,pa:0,ab:0,h:0,hr:0,rbi:0,bb:0,k:0,r:0});}
-function pitching(s,id){return s.pitching[id]??=({g:0,outs:0,h:0,r:0,bb:0,k:0,pitches:0});}
+function batting(s,id){return s.batting[id]??=( {g:0,pa:0,ab:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,r:0,sf:0});}
+function pitching(s,id){return s.pitching[id]??=({g:0,gs:0,w:0,l:0,sv:0,hld:0,bs:0,qs:0,outs:0,h:0,r:0,er:0,hr:0,bb:0,k:0,pitches:0});}
+const inc=(o,k,n=1)=>{o[k]=(o[k]||0)+n;};
 export function availableLineup(s,data,teamId){
  const roster=rosterFor(s,data,teamId);const healthy=roster.filter(p=>hasBat(p)&&!s.condition[p.id].injury);
  const old=s.teams[teamId].lineup.filter(id=>healthy.some(p=>p.id===id)&&s.condition[id].energy>=35);
@@ -137,15 +199,20 @@ export function simulateGame(s,data,awayId,homeId,options={}){
  const byId=Object.fromEntries(data.players.map(p=>[p.id,p]));
  for(const id of [awayId,homeId])if(!(id===s.teamId&&s.manualLineup))optimizeLineup(s,data,id);
  const lineups=[availableLineup(s,data,awayId),availableLineup(s,data,homeId)];
+ const fieldingDefense=side=>{const map=s.teams[[awayId,homeId][side]].fielding||{};const vals=lineups[side].filter(id=>map[id]&&map[id]!=='DH').map(id=>(defenseAt(byId[id],map[id])??50)*(s.condition[id].energy<35?.85:1));return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:50;};
+ const teamDefense=[fieldingDefense(0),fieldingDefense(1)];
  const teamIds=[awayId,homeId],score=[0,0],innings=[[],[]],index=[0,0],hits=[0,0],errors=[0,0];
  const arms=teamIds.map(id=>chooseStarter(s,data,id,id===s.teamId?options.starter:null));
  if(arms.some(p=>!p))throw new Error('無健康投手可出賽。');
  const usedArms=[new Set(),new Set()],boxB={},boxP={},moments=[];
  const startEnergy={};const pitchedPA={};
  const bstat=id=>boxB[id]??=({id,team_id:teamOf(s,byId[id]),ab:0,h:0,r:0,rbi:0,hr:0,bb:0,k:0});
- const pstat=id=>boxP[id]??=({id,team_id:teamOf(s,byId[id]),outs:0,h:0,r:0,bb:0,k:0,pitches:0});
+ const pstat=id=>boxP[id]??=({id,team_id:teamOf(s,byId[id]),outs:0,h:0,r:0,er:0,bb:0,k:0,pitches:0});
+ // Pitcher appearances per side, for wins, losses, saves, holds and blown saves.
+ const apps=[[],[]],goAhead=[null,null];
+ const enter=(side,pid,lead)=>apps[side].push({id:pid,entry:lead,exit:null});
  const changePitcher=side=>{
-  const current=arms[side],own=rosterFor(s,data,teamIds[side]).filter(p=>hasPitch(p)&&!s.condition[p.id].injury&&!usedArms[side].has(p.id)&&p.id!==current);
+  const current=arms[side],last=apps[side].at(-1);if(last&&last.id===current&&last.exit==null)last.exit=score[side]-score[1-side];const own=rosterFor(s,data,teamIds[side]).filter(p=>hasPitch(p)&&!s.condition[p.id].injury&&!usedArms[side].has(p.id)&&p.id!==current);
   own.sort((a,b)=>{const val=p=>pitchValue(p)+(p.role==='SP'?-16:5)+s.condition[p.id].energy*.4;return val(b)-val(a);});
   if(own.length)arms[side]=own[0].id;
  };
@@ -153,15 +220,19 @@ export function simulateGame(s,data,awayId,homeId,options={}){
  for(let inning=1;inning<=60;inning++){
   for(let side=0;side<2;side++){
    if(side===1&&inning>=9&&score[1]>score[0]){innings[1].push(null);break;}
-   const defense=1-side;let outs=0,runs=0,bases=[null,null,null],paGuard=0;
-   if(inning>=10)bases[1]={id:lineups[side][(index[side]+8)%9],pitcher:arms[defense]};
-   const scored=(runner,batterId)=>{score[side]++;runs++;batting(s,runner.id).r++;bstat(runner.id).r++;pitching(s,runner.pitcher).r++;pstat(runner.pitcher).r++;if(batterId){batting(s,batterId).rbi++;bstat(batterId).rbi++;}};
+   const defense=1-side;let outs=0,runs=0,bases=[null,null,null],paGuard=0,phantomOuts=0;
+   if(inning>=10)bases[1]={id:lineups[side][(index[side]+8)%9],pitcher:arms[defense],unearned:true};
+   // A run is unearned when the runner reached on an error, scored on an error, or after the inning should have ended.
+   const scored=(runner,batterId,errorPlay=false)=>{score[side]++;runs++;batting(s,runner.id).r++;bstat(runner.id).r++;pitching(s,runner.pitcher).r++;pstat(runner.pitcher).r++;
+    if(!runner.unearned&&!errorPlay&&outs+phantomOuts<3){inc(pitching(s,runner.pitcher),'er');pstat(runner.pitcher).er++;}
+    if(batterId){batting(s,batterId).rbi++;bstat(batterId).rbi++;}
+    if(score[side]===score[defense]+1)goAhead[side]={win:arms[side],lose:runner.pitcher};};
    while(outs<3){
     if(++paGuard>200)throw new Error('單局模擬超過上限，未儲存本次結果。');
     let pid=arms[defense],pc=pstat(pid),pitcher=byId[pid];
-    if(!usedArms[defense].has(pid)){usedArms[defense].add(pid);startEnergy[pid]=s.condition[pid].energy;pitching(s,pid).g++;}
+    if(!usedArms[defense].has(pid)){usedArms[defense].add(pid);startEnergy[pid]=s.condition[pid].energy;pitching(s,pid).g++;enter(defense,pid,score[defense]-score[side]);if(usedArms[defense].size===1)inc(pitching(s,pid),'gs');}
     const limit=usedArms[defense].size===1?85:27;
-    if(pc.pitches>=limit||s.condition[pid].energy<20){changePitcher(defense);pid=arms[defense];pitcher=byId[pid];pc=pstat(pid);if(!usedArms[defense].has(pid)){usedArms[defense].add(pid);startEnergy[pid]=s.condition[pid].energy;pitching(s,pid).g++;}}
+    if(pc.pitches>=limit||s.condition[pid].energy<20){changePitcher(defense);pid=arms[defense];pitcher=byId[pid];pc=pstat(pid);if(!usedArms[defense].has(pid)){usedArms[defense].add(pid);startEnergy[pid]=s.condition[pid].energy;pitching(s,pid).g++;enter(defense,pid,score[defense]-score[side]);}}
     const bid=lineups[side][index[side]++%9],batter=byId[bid],bs=batting(s,bid),pb=pitching(s,pid),gb=bstat(bid);bs.pa++;
     const pitches=3+Math.floor(random(s)*4);pc.pitches+=pitches;pb.pitches+=pitches;pitchedPA[pid]=(pitchedPA[pid]||0)+1;
     s.condition[pid].lastPlayed=s.day;s.condition[pid].energy=clamp(startEnergy[pid]-pc.pitches*(usedArms[defense].size===1?.79:1.8),0,100);
@@ -181,17 +252,17 @@ export function simulateGame(s,data,awayId,homeId,options={}){
      else if(event==='hr'||event==='hit'){
       bs.h++;gb.h++;pb.h++;pc.h++;hits[side]++;
       let distance=event==='hr'?4:random(s)<.2?2:random(s)<.025?3:1;
-      if(distance===4){bs.hr++;gb.hr++;}
+      if(distance===4){bs.hr++;gb.hr++;inc(pb,'hr');}else if(distance===2)inc(bs,'d');else if(distance===3)inc(bs,'t');
       const next=[null,null,null];
       for(let b=2;b>=0;b--)if(bases[b]){let target=b+distance;if(distance===1&&b===1&&random(s)<.55)target=3;if(distance===2&&b===0&&random(s)<.4)target=3;if(target>=3)scored(bases[b],bid);else next[target]=bases[b];}
       if(distance===4)scored(runner,bid);else next[distance-1]=runner;bases=next;
       if(distance===4)note(inning,side,`${batter.name} 轟出${score[side]-before[side]}分全壘打`,4+(inning>=7?3:0));
      }else{
-      const defensePlayers=lineups[defense].map(id=>byId[id]);const avgDefense=defensePlayers.filter(p=>s.teams[teamIds[defense]].fielding?.[p.id]!=='DH').reduce((a,p)=>a+(p.ratings.defense||50)*(s.condition[p.id].energy<35?.85:1),0)/8;
+      const avgDefense=teamDefense[defense];
       if(random(s)<clamp(.013-(avgDefense-50)*.0003,.004,.025)){
-       errors[defense]++;const next=[runner,null,null];for(let b=2;b>=0;b--)if(bases[b]){if(b===2)scored(bases[b],null);else next[b+1]=bases[b];}bases=next;
+       errors[defense]++;runner.unearned=true;const next=[runner,null,null];for(let b=2;b>=0;b--)if(bases[b]){if(b===2)scored(bases[b],null,true);else next[b+1]=bases[b];}bases=next;phantomOuts++;
       }else if(bases[0]&&outs<2&&random(s)<.16){outs+=2;pb.outs+=2;pc.outs+=2;bases[0]=null;}
-      else{if(bases[2]&&outs<2&&random(s)<.25){scored(bases[2],bid);bases[2]=null;bs.ab--;gb.ab--;}outs++;pb.outs++;pc.outs++;}
+      else{if(bases[2]&&outs<2&&random(s)<.25){scored(bases[2],bid);bases[2]=null;bs.ab--;gb.ab--;inc(bs,'sf');}outs++;pb.outs++;pc.outs++;}
      }
     }
     if(score[side]>before[side]&&before[side]<=before[defense]&&score[side]>score[defense])note(inning,side,`${batter.name} 的打席讓球隊取得領先`,inning>=7?9:5);
@@ -205,10 +276,33 @@ export function simulateGame(s,data,awayId,homeId,options={}){
  }
  for(let side=0;side<2;side++)for(const id of lineups[side]){batting(s,id).g++;s.condition[id].energy=clamp(s.condition[id].energy-10,0,100);s.condition[id].lastPlayed=s.day;}
  const winner=score[0]>score[1]?awayId:homeId,loser=winner===awayId?homeId:awayId;
+ const decisions=recordDecisions(s,apps,goAhead,score,winner===awayId?0:1,boxP);
  if(!options.postseason){s.teams[winner].w++;s.teams[loser].l++;for(let side=0;side<2;side++){s.teams[teamIds[side]].rs+=score[side];s.teams[teamIds[side]].ra+=score[1-side];}}
  const game={day:s.day,away:awayId,home:homeId,score,innings,hits,errors,winner,postseason:!!options.postseason,
-  moments:moments.sort((a,b)=>b.importance-a.importance).slice(0,6).sort((a,b)=>a.inning-b.inning||a.half-b.half),batters:Object.values(boxB),pitchers:Object.values(boxP),lineups};
+  moments:moments.sort((a,b)=>b.importance-a.importance).slice(0,6).sort((a,b)=>a.inning-b.inning||a.half-b.half),batters:Object.values(boxB),pitchers:Object.values(boxP),lineups,decisions};
  return game;
+}
+// Official-style decisions, simplified: the pitcher of record at the final go-ahead run wins
+// (a starter needs 5 innings, otherwise the longest winning reliever gets it); the pitcher charged
+// with that run loses. Saves: the winning finisher who entered with a 1-3 run lead, or pitched 3+ innings.
+// Holds and blown saves go to relievers who entered with a 1-3 run lead.
+function recordDecisions(s,apps,goAhead,score,winSide,boxP){
+ const loseSide=1-winSide,outsOf=id=>boxP[id]?.outs||0;
+ for(let side=0;side<2;side++){const last=apps[side].at(-1);if(last&&last.exit==null)last.exit=score[side]-score[1-side];}
+ const wApps=apps[winSide],starter=wApps[0];let win=goAhead[winSide]?.win;
+ if(win===starter?.id&&outsOf(win)<15&&wApps.length>1)win=[...wApps.slice(1)].sort((a,b)=>outsOf(b.id)-outsOf(a.id))[0].id;
+ const lose=goAhead[winSide]?.lose,closer=wApps.at(-1);
+ let save=null;
+ if(closer&&closer.id!==win&&wApps.length>1&&((closer.entry>=1&&closer.entry<=3&&outsOf(closer.id)>=1)||(closer.entry>=1&&outsOf(closer.id)>=9)))save=closer.id;
+ if(win)inc(pitching(s,win),'w');if(lose)inc(pitching(s,lose),'l');if(save)inc(pitching(s,save),'sv');
+ const holds=[],blown=[];
+ for(let side=0;side<2;side++)apps[side].forEach((a,i)=>{
+  if(i===0||a.entry<1||a.entry>3)return;
+  if(a.exit<=0){blown.push(a.id);inc(pitching(s,a.id),'bs');}
+  else if(a.id!==save&&a.id!==win&&outsOf(a.id)>=1&&a!==apps[side].at(-1)){holds.push(a.id);inc(pitching(s,a.id),'hld');}
+ });
+ for(let side=0;side<2;side++){const st=apps[side][0];if(st&&outsOf(st.id)>=18&&(boxP[st.id]?.er||0)<=3)inc(pitching(s,st.id),'qs');}
+ return {win,lose,save,holds,blown};
 }
 export function standings(s){return Object.entries(s.teams).sort((a,b)=>(b[1].w/(b[1].w+b[1].l||1))-(a[1].w/(a[1].w+a[1].l||1))||((b[1].rs-b[1].ra)-(a[1].rs-a[1].ra))||a[0].localeCompare(b[0]));}
 function recover(s,data){for(const p of data.players){const c=s.condition[p.id];c.energy=clamp(c.energy+(hasPitch(p)?18:c.lastPlayed===s.day-1?5:16),0,100);if(c.injury)c.injury--;if(c.formDays>0){c.formDays--;if(!c.formDays)c.form=0;}}}
@@ -342,6 +436,8 @@ export function migrateSeason(s,data){
  initializeNews(s,data);
  if(s.event?.type==='clubhouse'&&s.event.scenario&&!s.event.options)designClubhouseChoices(s.event,data);
  s.storyQueue??=[];s.storyRecent??=[];s.storyFlags??={};
+ // v1.6 stats: earned runs and decisions. Older rows treat every run as earned; decisions count from the upgrade day.
+ for(const row of Object.values(s.pitching||{}))if(row.er==null){row.er=row.r;s.decisionStatsFrom??=s.day;}
  s.version=VERSION;s.ownership??={};s.tradeLog??=[];s.finance??={};
  for(const t of data.teams){
   const club=s.teams[t.id],roster=rosterFor(s,data,t.id);club.morale??=50;club.fielding??=assignFielding(club.lineup,data)||{};
@@ -633,7 +729,7 @@ function rookie(s,template,teamId,year,serial){
  // Rookie ratings are drawn on the league's own scale, then put on the world scale.
  for(const key of Object.keys(template.ratings)){const v=clamp(36+Math.floor(random(s)*17),20,80);ratings[key]=league?worldRating(league,key,v):v;}
  const id=`sim:${year}:${teamId}:${serial}`;
- return {id,name:`${name}（虛構新人）`,team_id:teamId,...(league?{league,origin:{NPB:'JPN',CPBL:'TWN'}[league]||'INTL'}:{}),position:template.position,positions:[...positionsOf(template)],role:template.role,ratings,birth_date:`${year-age}-07-01`,bats:template.bats||'R',throws:template.throws||'R',jersey_number:String(10+Math.floor(random(s)*80)),status:'Active',simulated:true,rookieYear:year,developmentPotential:league?worldRating(league,'contact',56+Math.floor(random(s)*20)):56+Math.floor(random(s)*20)};
+ return {id,name:`${name}（虛構新人）`,team_id:teamId,...(league?{league,origin:{NPB:'JPN',CPBL:'TWN'}[league]||'INTL'}:{}),position:hasBat(template)?primaryPosition(template):template.position,positions:[...positionsOf(template)],role:template.role,ratings,birth_date:`${year-age}-07-01`,bats:template.bats||'R',throws:template.throws||'R',jersey_number:String(10+Math.floor(random(s)*80)),status:'Active',simulated:true,rookieYear:year,developmentPotential:league?worldRating(league,'contact',56+Math.floor(random(s)*20)):56+Math.floor(random(s)*20)};
 }
 export function advanceSeason(previous,base){
  if(previous.phase!=='finished'||!previous.champion)throw new Error('請先完成本季冠軍賽，再進入下一季。');
@@ -643,6 +739,8 @@ export function advanceSeason(previous,base){
  const clubName=id=>base.teams.find(t=>t.id===id).zh;
  for(const original of data.players){
   const p=structuredClone(original),teamId=teamOf(old,p),age=year-Number(p.birth_date?.slice(0,4)||1998);p.team_id=teamId;
+  // Lock generic IF/OF listings to the spot chosen from this season's ratings, so aging never reshuffles positions.
+  if(hasBat(p)&&!DEF_SPOTS.includes(p.position)&&p.position!=='DH'){p.position=primaryPosition(original);p.positions=[...positionsOf(original)];}
   const retireChance=age>=45?1:age>=37?Math.min(.85,.10+(age-37)*.09):0;
   if(retireChance&&random(old)<retireChance){
    retirees.push({id:p.id,name:p.name,teamId,age});const next=rookie(old,p,teamId,year,++serial);players.push(next);newcomers.push({id:next.id,name:next.name,teamId,age:year-Number(next.birth_date.slice(0,4)),position:positionsOf(next).join('/')});continue;
