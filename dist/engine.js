@@ -1,5 +1,5 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=20';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=21';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
 export const VERSION=5;
 export const SEASON_GAMES=81;
@@ -416,10 +416,14 @@ export function nextDay(s,data,options={}){
 
 // Fictional contracts and finances. USD; one contract covers the current season.
 // World mode: each league pays on its own scale (NPB about 30% of MLB, CPBL about 8%).
-export const LEAGUE_PAY={MLB:1,NPB:.3,CPBL:.08};
+export const LEAGUE_PAY={MLB:1,NPB:.3,KBO:.15,CPBL:.08};
 // Club revenue and running costs follow the same league scale (only in world mode, where players carry a league).
 export const moneyScale=s=>s?.world?(LEAGUE_PAY[s.league]??1):1;
-export const LEAGUE_SCALE={MLB:{shift:0,spread:1},NPB:{shift:-8,spread:.92},CPBL:{shift:-15,spread:.85}};
+// League gaps (narrowed in v2.0 so players move between leagues more): NPB, then KBO, then CPBL.
+export const LEAGUE_SCALE={MLB:{shift:0,spread:1},NPB:{shift:-6,spread:.94},KBO:{shift:-9,spread:.91},CPBL:{shift:-12,spread:.88}};
+/** Display scale 1–100 for the 20–80 engine ratings: MLB stars ≈ 99, a league-average MLB regular ≈ 70. */
+export const g100=v=>v==null||Number.isNaN(v)?'—':Math.max(1,Math.min(100,Math.round(70+(v-50)*1.6)));
+export const g100delta=d=>d*1.6;
 const SKILL_KEYS=['contact','power','eye','stuff','control','movement'],ATHLETIC_KEYS=['speed','defense'];
 export function worldRating(league,key,value){const k=LEAGUE_SCALE[league]||LEAGUE_SCALE.MLB;if(SKILL_KEYS.includes(key))return clamp(Math.round(49+(value-49)*k.spread+k.shift),20,80);if(ATHLETIC_KEYS.includes(key))return clamp(Math.round(value+k.shift/2),20,80);return value;}
 export function marketSalary(p){const value=hasPitch(p)&&!hasBat(p)?pitchValue(p):Math.max(hasBat(p)?batValue(p):0,hasPitch(p)?pitchValue(p):0);return Math.round((250000+Math.pow(Math.max(0,value-40),2)*15000+(p.role==='SP'?350000:0))/50000)*50000;}
@@ -565,6 +569,7 @@ export function extendContract(s,data,id,{salary,years}){
 }
 // ---- Midseason free agents: generated depth/import options, refreshed weekly, signable until the deadline.
 const FA_NAMES={
+ KBO:['艾德華','布雷迪','卡麥隆','德瑞克','馬汀尼','羅德斯','柯林頓','魏斯特','安德魯','費南多','葛瑞森','雷克斯'],
  CPBL:['艾德華','布雷迪','卡麥隆','德瑞克','馬汀尼','羅德斯','柯林頓','魏斯特','安德魯','費南多','葛瑞森','雷克斯'],
  NPB:['エドワーズ','ブレイディ','キャメロン','デレク','マルティネス','ロドリゲス','クリントン','ウェスト','アンドリュース','フェルナンド','グレイソン','レックス'],
  MLB:['Eddie Ward','Brady Cole','Cam Ferris','Derek Lunt','Manny Ortiz','Rod Sayer','Clint Moody','Wes Barlow','Drew Hale','Fernando Ruiz','Gray Tolliver','Rex Dunham'],
@@ -591,7 +596,7 @@ export function signCheck(s,data,id){
  const p=freeAgentPool(s,data).find(x=>x.id===id),reasons=[];
  if(!p)return {ok:false,reasons:['這名球員已不在市場上。']};
  const league=s.league;
- if(s.phase!=='regular'||s.day>=freeAgentDeadline(s))reasons.push(`季中簽約截止（第 ${freeAgentDeadline(s)} 日）${league==='CPBL'?'，相當於中職的 8/31 洋將大限':''}。`);
+ if(s.phase!=='regular'||s.day>=freeAgentDeadline(s))reasons.push(`季中簽約截止（第 ${freeAgentDeadline(s)} 日）${league==='CPBL'?'，相當於中職的 8/31 洋將大限':league==='KBO'?'，相當於韓職 8/15 的外籍球員替換期限':''}。`);
  const roster=rosterFor(s,data,s.teamId),lim=FOREIGN_LIMIT[league];
  if(lim&&isImport(p,league)&&importCount(roster,league)>=lim)reasons.push(`洋將名額已滿（每隊最多 ${lim} 人），先釋出一名洋將。`);
  if(roster.length>=100)reasons.push('名單已滿 100 人。');
@@ -640,7 +645,7 @@ export function releasePlayer(s,data,id){
 }
 // ---- Trades v3: up to 3 players each way, cash either way (positive: proposer pays; negative: the other club pays).
 // Foreign-player limits (world mode sets p.origin). Kept here so trades and releases can check them.
-export const FOREIGN_LIMIT={NPB:10,CPBL:6};const HOME_OF={JPN:'NPB',TWN:'CPBL',INTL:'MLB'};
+export const FOREIGN_LIMIT={NPB:10,KBO:4,CPBL:6};const HOME_OF={JPN:'NPB',KOR:'KBO',TWN:'CPBL',INTL:'MLB'};
 export const isImport=(p,league)=>!!league&&league!=='MLB'&&!!p.origin&&HOME_OF[p.origin]!==league;
 export const importCount=(players,league)=>players.filter(p=>isImport(p,league)).length;
 // Hooks other modules install (GM layer): daily updates and the user's trade price.
@@ -905,7 +910,7 @@ function rookie(s,template,teamId,year,serial){
  // Rookie ratings are drawn on the league's own scale, then put on the world scale.
  for(const key of Object.keys(template.ratings)){const v=clamp(36+Math.floor(random(s)*17),20,80);ratings[key]=league?worldRating(league,key,v):v;}
  const id=`sim:${year}:${teamId}:${serial}`;
- return {id,name:`${name}（虛構新人）`,team_id:teamId,...(league?{league,origin:{NPB:'JPN',CPBL:'TWN'}[league]||'INTL'}:{}),position:hasBat(template)?primaryPosition(template):template.position,positions:[...positionsOf(template)],role:template.role,ratings,birth_date:`${year-age}-07-01`,bats:template.bats||'R',throws:template.throws||'R',jersey_number:String(10+Math.floor(random(s)*80)),status:'Active',simulated:true,rookieYear:year,developmentPotential:league?worldRating(league,'contact',56+Math.floor(random(s)*20)):56+Math.floor(random(s)*20)};
+ return {id,name:`${name}（虛構新人）`,team_id:teamId,...(league?{league,origin:{NPB:'JPN',KBO:'KOR',CPBL:'TWN'}[league]||'INTL'}:{}),position:hasBat(template)?primaryPosition(template):template.position,positions:[...positionsOf(template)],role:template.role,ratings,birth_date:`${year-age}-07-01`,bats:template.bats||'R',throws:template.throws||'R',jersey_number:String(10+Math.floor(random(s)*80)),status:'Active',simulated:true,rookieYear:year,developmentPotential:league?worldRating(league,'contact',56+Math.floor(random(s)*20)):56+Math.floor(random(s)*20)};
 }
 export function advanceSeason(previous,base){
  if(previous.phase!=='finished'||!previous.champion)throw new Error('請先完成本季冠軍賽，再進入下一季。');

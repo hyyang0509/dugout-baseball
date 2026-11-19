@@ -1,8 +1,8 @@
 // DUGOUT GM layer: the field manager, board goals and job security, GM reputation titles, and fan / pundit buzz.
 // It hooks into the engine (HOOKS) so a season keeps running even if this module is not loaded (tests, AI leagues).
 import {HOOKS, rosterFor, hasBat, hasPitch, ovr, potential, playerAge, payroll, teamStrategy, standings, seasonGames, idHash,
-  moneyScale, clamp, addNews, homeAttendance, normOffer, tradeDeadline, salaryOf, optimizeLineup} from './engine.js?v=20';
-import {teamReport, tradeImpact} from './gm.js?v=20';
+  moneyScale, clamp, addNews, homeAttendance, normOffer, tradeDeadline, salaryOf, optimizeLineup} from './engine.js?v=21';
+import {teamReport, tradeImpact} from './gm.js?v=21';
 
 const club = (data, id) => data.teams.find(t => t.id === id);
 const seasonYear = s => s.year || 2026;
@@ -20,6 +20,7 @@ const STYLE_KEYS = Object.keys(MANAGER_STYLES);
 const MANAGER_NAMES = {
   MLB: ['Walt Harmon', 'Gene Castellano', 'Pete Ruland', 'Marcus Doyle', 'Rico Valdez', 'Hal Brennecke', 'Curtis Lamb', 'Frank Oduya'],
   NPB: ['松浦大輔', '石井隆志', '川端修一', '小野寺昇', '岩崎和樹', '長谷部亮', '大塚雅彦', '宮下浩一'],
+  KBO: ['金永勳', '李承哲', '朴載賢', '崔東旭', '鄭泰浩', '姜聖民', '趙恩錫', '尹在植'],
   CPBL: ['蔡明哲', '游振宏', '簡志遠', '施國良', '鄭宏毅', '潘建銘', '謝文彬', '江俊賢'],
 };
 function makeManager(s, i) {

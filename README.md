@@ -4,12 +4,12 @@
 
 手機與電腦可玩的棒球球團經營遊戲。v0.7 支援 MLB 30 隊、中華職棒 6 隊、日本職棒 12 隊、81 場生成賽程、四強季後賽、多年度經營、球員成長與退役、事件、交易及遊戲財務。
 
-三聯盟各自開季、各自存檔；KBO 與跨聯盟交流尚未實作。中職中文姓名，日職漢字姓名，片假名姓名提供中文音譯。
+美職、日職、韓職、中職在同一個世界存檔裡同時進行；跨聯盟交流賽尚未實作。中職中文姓名，日職漢字姓名，片假名姓名提供中文音譯；韓職姓名為遊戲依讀音轉寫的漢字。能力以 1–100 分顯示（四聯盟同一把尺）。
 
 ## 開發與部署
 
 - Node.js 24，無外部前端相依套件。
-- 執行 `npm test`：111 項測試。
+- 執行 `npm test`：117 項測試。
 - 本機啟動：`python -m http.server 8000 --directory dist`，開啟 `http://localhost:8000`。
 - 網站目錄：`dist/`，不要直接發布儲存庫根目錄。
 - GitHub Pages 的 Source 選 GitHub Actions；推送到 main 後先測試再發布 dist，PR 只測試。
@@ -24,7 +24,7 @@
 | dist/styles.css | 手機、桌面、亮暗色 |
 | dist/data/roster_mlb.json | MLB 初始名單與估計評級 |
 | dist/leagues.js | 聯盟資料載入與獨立存檔鍵 |
-| dist/data/roster_cpbl.json、roster_npb.json | 中職／日職官方名單與暫定遊戲能力 |
+| dist/data/roster_cpbl.json、roster_npb.json、roster_kbo.json | 中職／日職／韓職官方名單與遊戲能力 |
 | data_pipeline/ | Python 資料整理 |
 | tests/ | 自動測試 |
 | docs/CHANGELOG.md | 開發沿革及限制 |
@@ -46,3 +46,7 @@
 三聯盟均沿用 81 場、前四名季後賽的遊戲賽制，非現實完整賽制。辦公室上方可切換聯盟；原 MLB 存檔鍵維持不變。
 
 重建名單：安裝 data_pipeline/requirements.txt 後，執行 `python data_pipeline/fetch_asia_rosters.py`。名單更新前需另行驗證舊存檔相容性，不會自動線上更新。
+
+## 韓職資料
+
+2025 球季結束時的 KBO 登錄名單（10 隊、629 人），取自 KBO 官方紀錄、由開源專案 KBOFM2025（https://github.com/KBOFM2025/KBOFM2025）整理的 CSV，以 `data_pipeline/build_kbo.py` 轉換。能力依 2024–2025 一軍成績換算；已移除 2026 年轉戰美職的球員，2026 新簽洋將與亞洲名額球員尚未收錄。韓國球員姓名是遊戲依讀音轉寫的漢字，不是官方漢字名（少數知名球員除外）。

@@ -56,3 +56,10 @@
 - contractAsk/offerOutlook：開價與底線（每季固定）；setExpiringOffer 設定續約開價，completeOffseason 低於底線者進市場並發新聞。o.userControlled 列出自動續約的年輕球員與新年薪。
 - 休賽季：startOffseason 設 user.offseasonTrades=true，evaluateTrade/releaseCheck 據此開放；releaseInOffseason 付清剩餘合約並加入 o.freeAgents。
 - 季中自由球員：freeAgentPool（s.faPool，每週）、signCheck、signFreeAgent（寫入 s.playerPool，呼叫端需重建 data）。
+
+## v2.0 韓職與 1–100 顯示
+
+- dist/data/roster_kbo.json 由 data_pipeline/build_kbo.py 產生（讀取 KBOFM2025 開源專案的 data/source CSV；KBO 官網在建置環境連不到）。姓名轉寫在 data_pipeline/kbo_names_zh.py。
+- LEAGUE_ORDER 加入 KBO；origin 'KOR'；FOREIGN_LIMIT/FOREIGN_QUOTA KBO 4；LEAGUE_PAY .15；LEAGUE_SCALE 縮小差距（NPB -6、KBO -9、CPBL -12）。restoreWorld 對缺少的聯盟呼叫 addLeague，模擬到使用者聯盟同一天。
+- g100(v) 只用於顯示：70 + (v − 50) × 1.6，限制在 1–100；g100delta 用於戰力差。引擎與存檔數值仍是 20–80。
+- offseason.market.crossTotal 記錄跨聯盟移動總數。
