@@ -1,8 +1,8 @@
 // DUGOUT front office: team strength profile, league ranks, trade impact and the chief assistant.
 // Everything here reads the season; only hiring an assistant changes it (through hireAssistant).
 import {rosterFor, autoLineup, assignFielding, hasBat, hasPitch, batValue, pitchValue, defenseAt, ovr, potential, playerAge,
-  salaryOf, payroll, teamStrategy, untouchables, evaluateTrade, normOffer, tradeDeadline, idHash, moneyScale, teamOf, clamp, positionsOf, primaryPosition} from './engine.js?v=18';
-import {batLine, pitchLine, leagueBaselines, opsPlus, eraPlus} from './stats.js?v=18';
+  salaryOf, payroll, teamStrategy, untouchables, evaluateTrade, normOffer, tradeDeadline, idHash, moneyScale, teamOf, clamp, positionsOf, primaryPosition} from './engine.js?v=19';
+import {batLine, pitchLine, leagueBaselines, opsPlus, eraPlus} from './stats.js?v=19';
 
 export const CATEGORIES = [
   {key: 'offense', label: '打擊火力', hint: '先發九人的整體打擊能力'},
@@ -114,7 +114,9 @@ export const assistantFee = (s, a) => Math.max(10000, Math.round(a.fee * moneySc
 /** Three candidates per season, stable within the season. */
 export function assistantCandidates(s) {
   const cur = assistantOf(s);
-  return [1, 2, 3, 4].map(i => makeAssistant(s.league || 'MLB', s.teamId, i, s.year || 2026)).filter(a => a.name !== cur.name).slice(0, 3);
+  const seen = new Set([cur.name]), out = [];
+  for (let i = 1; out.length < 3 && i < 40; i++) { const a = makeAssistant(s.league || 'MLB', s.teamId, i, s.year || 2026); if (!seen.has(a.name)) { seen.add(a.name); out.push(a); } }
+  return out;
 }
 export function hireAssistant(s, candidateId) {
   const c = assistantCandidates(s).find(a => a.id === candidateId);

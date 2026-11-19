@@ -259,3 +259,29 @@ html[data-theme=dark] .form-error{color:#f29a85}
 .analysis-panel>:not(.panel-header),.assistant-panel>:not(.panel-header),.assistant-office>:not(.panel-header),.candidate-row,.candidate-panel>p{margin-left:20px;margin-right:20px}
 .assistant-panel>.text-btn{display:inline-block;margin-bottom:14px}
 .analysis-panel>.analysis-summary{margin-bottom:18px}
+
+/* v1.8 GM mode */
+.tag.import{display:inline-flex;align-items:center;justify-content:center;margin-left:6px;padding:0 5px;height:18px;font-size:11px;font-weight:800;border-radius:3px;background:#2f6f9f;color:#fff;vertical-align:middle}
+.chip.warn{border-color:var(--red);color:var(--red)}
+.heading-actions .chip,.page-heading .chip{margin-left:8px}
+.meter{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:6px 0}.meter i{display:block;height:100%;background:var(--amber)}
+.meter.good i{background:#3f8f4f}.meter.bad i{background:var(--red)}
+.board-body{padding:0 20px 18px}
+.goal-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 0;border-top:1px solid var(--line)}
+.goal-row>div{display:flex;flex-direction:column}.goal-row small{color:var(--muted);font-size:12px}.goal-row .meter{grid-column:1/-1}
+.goal-row.met .meter i{background:#3f8f4f}.goal-row.behind .meter i{background:var(--red)}
+.goal-weight{font-size:12px;color:var(--muted);align-self:center}
+.goal-grade{margin:10px 0 4px;font-size:14px}.goal-grade strong{font-size:20px}
+.title-list{display:grid;gap:10px}.title-card{border:1px solid var(--line);border-left:5px solid var(--amber);padding:10px 12px;display:flex;flex-direction:column;gap:3px}
+.title-card strong{font-size:16px}.title-card span{font-size:13px}.title-card small{color:var(--muted);font-size:12px}
+details summary{cursor:pointer;margin:14px 0 6px;font-weight:700;font-size:13px}details p{font-size:13px;margin:6px 0;opacity:.7}details p.have{opacity:1}details small{color:var(--muted)}
+.fan-post{border-top:1px solid var(--line);padding:10px 0;display:grid;grid-template-columns:1fr auto auto;gap:4px 12px;align-items:baseline}
+.fan-post>div{grid-column:1/-1;display:flex;gap:10px;align-items:baseline}.fan-post>div small{color:var(--muted);font-size:11px}
+.fan-post p{margin:0;font-size:14px}.fan-post .push{color:#3f8f4f;font-size:12px;font-weight:700}.fan-post .boo{color:var(--red);font-size:12px;font-weight:700}
+.fan-post.pundit strong{color:var(--amber)}.fan-post.pundit p{font-style:italic}
+.gm-columns{margin-bottom:18px}
+.btn.danger{border-color:var(--red);color:var(--red)}.btn.primary.danger{background:var(--red);color:#fff}
+.modal-actions.left{justify-content:flex-start;margin:12px 20px 18px}
+.assistant-office .modal-actions.left{margin-left:20px}
+.season-actions.fired h2{color:var(--red)}
+.reason-list{color:var(--red);font-size:13px}
