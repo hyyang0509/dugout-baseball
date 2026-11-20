@@ -30,7 +30,7 @@ test('every story template builds with real players and every choice resolves cl
 
 test('the deck draws a wide variety of stories and legendary ones stay rare',()=>{
  const s=fresh(7),seen={},rarity={};
- for(let i=0;i<400;i++){makeEvent(s,data,'story');const e=s.event;if(e.story){seen[e.story]=(seen[e.story]||0)+1;rarity[e.rarity]=(rarity[e.rarity]||0)+1;}resolveEvent(s,data,e.choices.length-1);}
+ for(let i=0;i<400;i++){s.day=i%80;makeEvent(s,data,'story');const e=s.event;if(e.story){seen[e.story]=(seen[e.story]||0)+1;rarity[e.rarity]=(rarity[e.rarity]||0)+1;}resolveEvent(s,data,e.choices.length-1);}
  assert.ok(Object.keys(seen).length>=20,`distinct ${Object.keys(seen).length}`);
  assert.ok((rarity.legendary||0)<(rarity.common||0)/8,JSON.stringify(rarity));
 });
@@ -47,4 +47,15 @@ test('a full season with the story deck plays through and finances reconcile',()
  const s=fresh(5);const f=s.finance[s.teamId],opening=f.cash;
  while(s.phase!=='finished'){if(s.event){const ok=s.event.choices.map((_,i)=>i).filter(i=>eventChoiceStatus(s,data,s.event,i).ok);resolveEvent(s,data,ok[0]??0);}nextDay(s,data);}
  assert.equal(f.cash,opening+f.income-f.salaryCost-f.operatingCost+f.tradeCash);
+});
+
+test('v2.7 deck: 120+ stories, league-only stories stay in their league, cooldowns hold',()=>{
+ assert.ok(STORIES.length>=120,`${STORIES.length}`);
+ const s=fresh(21),seen={};let league=0;
+ for(let i=0;i<300;i++){s.day=i%80;makeEvent(s,data,'story');const e=s.event;
+  if(e.story){const tpl=STORIES.find(t=>t.id===e.story);if(tpl.leagues){league++;assert.ok(tpl.leagues.includes('MLB'),e.story);}
+   if(!e.chain&&seen[e.story]!=null&&seen[e.story]<=s.day)assert.ok(s.day-seen[e.story]>=20,`${e.story} repeated after ${s.day-seen[e.story]} days`);seen[e.story]=s.day;}
+  resolveEvent(s,data,e.choices.length-1);if(s.day===79)Object.keys(seen).forEach(k=>delete seen[k]);}
+ for(const t of STORIES.filter(t=>t.leagues))assert.ok(t.leagues.every(l=>['MLB','NPB','KBO','CPBL'].includes(l)),t.id);
+ for(const id of ['CPBL','KBO','NPB'])assert.ok(STORIES.some(t=>t.leagues?.includes(id)),id);
 });

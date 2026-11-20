@@ -1,9 +1,12 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=27';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=28';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
 export const VERSION=5;
 export const SEASON_GAMES=81;
-export const EVENT_RATE=.40;
+// v2.7: more stories, shown less often (was .40).
+export const EVENT_RATE=.25;
+// Days before the same story can come back; legendary ones at most once a season.
+export const STORY_COOLDOWN={common:20,uncommon:35,legendary:999};
 export const seasonGames=s=>s.schedule.length;
 export const tradeDeadline=s=>Math.floor(seasonGames(s)*.76);
 export const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -870,7 +873,7 @@ function storyContext(s,data,teamId){
  const roster=rosterFor(s,data,teamId).filter(p=>!s.condition[p.id].injury);
  let streak=0;for(const g of s.history){if(g.away!==teamId&&g.home!==teamId)continue;const won=g.winner===teamId;if(!streak)streak=won?1:-1;else if(won===(streak>0))streak+=won?1:-1;else break;}
  const club=s.teams[teamId];
- return {roster,streak,rank:standings(s).findIndex(([id])=>id===teamId)+1,teams:data.teams.length,day:s.day,games:club.w+club.l,cash:s.finance[teamId]?.cash||0,morale:club.morale??50,flags:s.storyFlags||{},
+ return {league:data.league||s.league||'MLB',roster,streak,rank:standings(s).findIndex(([id])=>id===teamId)+1,teams:data.teams.length,day:s.day,games:club.w+club.l,cash:s.finance[teamId]?.cash||0,morale:club.morale??50,flags:s.storyFlags||{},
   random:()=>random(s),pick:list=>list&&list.length?list[Math.floor(random(s)*list.length)]:null,name:id=>data.players.find(p=>p.id===id)?.name||'球員',
   traits:p=>playerTraits(s,p),age:p=>playerAge(s,p),form:p=>s.condition[p.id]?.form||0,energy:p=>s.condition[p.id]?.energy??100};
 }
@@ -884,11 +887,12 @@ function buildStory(s,data,tpl,cast,teamId=s.teamId){
 }
 function drawStory(s,data){
  const c=storyContext(s,data,s.teamId);if(!c.roster.length)return null;
- const recent=new Set(s.storyRecent||[]);
- const pool=STORIES.filter(t=>!t.followOnly&&!recent.has(t.id)).map(t=>({t,w:(t.weight?t.weight(c):1)*RARITY_WEIGHT[t.rarity]})).filter(x=>x.w>0);
+ const recent=new Set(s.storyRecent||[]),last=s.storyLast||{},year=s.year||START_YEAR;
+ const cooled=t=>{const l=last[t.id];return !l||l.y!==year||s.day-l.d>=(t.cooldown??STORY_COOLDOWN[t.rarity]??20);};
+ const pool=STORIES.filter(t=>!t.followOnly&&!recent.has(t.id)&&cooled(t)&&(!t.leagues||t.leagues.includes(c.league))).map(t=>({t,w:(t.weight?t.weight(c):1)*RARITY_WEIGHT[t.rarity]})).filter(x=>x.w>0);
  for(let tries=0;tries<4&&pool.length;tries++){
   const total=pool.reduce((a,x)=>a+x.w,0);let r=random(s)*total,i=0;for(;i<pool.length-1;i++){r-=pool[i].w;if(r<=0)break;}
-  const e=buildStory(s,data,pool[i].t,null);if(e){s.storyRecent=[pool[i].t.id,...(s.storyRecent||[])].slice(0,12);return e;}pool.splice(i,1);
+  const e=buildStory(s,data,pool[i].t,null);if(e){s.storyRecent=[pool[i].t.id,...(s.storyRecent||[])].slice(0,12);s.storyLast={...last,[pool[i].t.id]:{y:year,d:s.day}};return e;}pool.splice(i,1);
  }
  return null;
 }

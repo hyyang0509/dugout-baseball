@@ -319,3 +319,13 @@ html[data-theme=dark]{--art-board:#0a2a20;--art-dim:#2f5a49}
 .defense-link{cursor:pointer}
 .defense-link:hover rect,.defense-link:focus rect{stroke-width:2;opacity:1}
 .defense-link:focus{outline:none}
+
+/* v2.7 player database */
+.pdb-controls{display:grid;gap:12px;margin-bottom:14px}
+.pdb-search{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:0 12px;background:var(--paper)}
+.pdb-search svg{width:18px;height:18px;opacity:.7;flex:none}
+.pdb-search input{flex:1;min-width:0;border:0;background:transparent;color:inherit;font:inherit;font-size:16px;padding:12px 0;outline:none}
+.pdb-search:focus-within{outline:2px solid currentColor;outline-offset:1px}
+.pdb-count{margin:0 0 8px}
+.pdb-more{margin:14px auto 0;display:block}
+.pdb-table td,.pdb-table th{padding-inline:10px}.pdb-table .player-name{min-width:0}.pdb-table .player-name small .league-tag{font-size:9px}
