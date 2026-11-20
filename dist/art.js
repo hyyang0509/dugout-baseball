@@ -1,5 +1,6 @@
+import {STORY_BY_ID} from './stories.js?v=28';
 // BM27 scene art: flat scoreboard-style SVG illustrations (no photos, no real logos).
-// Pure functions, no imports. Colours come from the page's CSS variables so both themes work.
+// Pure functions; story scenes come from stories.js. Colours come from the page's CSS variables so both themes work.
 
 const BOARD = 'var(--art-board)', INK = 'var(--art-ink)', GOLD = 'var(--art-gold)', RED = 'var(--art-red)', DIM = 'var(--art-dim)';
 
@@ -20,6 +21,7 @@ const TYPE_SCENE = {injury: 'medical', training: 'training', offfield: 'media', 
 export function sceneFor(e) {
   if (!e) return 'office';
   if (e.story && STORY_SCENE[e.story]) return STORY_SCENE[e.story];
+  if (e.story && STORY_BY_ID[e.story]?.scene) return STORY_BY_ID[e.story].scene;
   if (e.type === 'clubhouse' && e.scenario === 'bus') return 'travel';
   return TYPE_SCENE[e.type] || 'clubhouse';
 }
