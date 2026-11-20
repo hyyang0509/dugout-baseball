@@ -21,7 +21,7 @@ test('2026 KBO roster: post-season snapshot, Wang Yen-Cheng on Hanwha, labelled 
   assert.equal(wang.position, 'P');
   for (const p of kbo.players) {
     if (p.ratings_source.startsWith('estimate_new_2026')) assert.ok(p.roster_source === 'kowiki_2026', p.name);
-    assert.ok(!/[가-힣]/.test(p.name.replace(/[가-힣](?=[一-鿿])/g, '')) || p.name_transliterated, p.name);
+    assert.ok(!/[가-힣]/.test(p.name), `Hangul left in ${p.name}`);
   }
   // Every club can field nine and has a five-man rotation.
   for (const t of kbo.teams) {

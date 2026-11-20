@@ -2,14 +2,14 @@
 
 [立即試玩](https://hyyang0509.github.io/dugout-baseball/) · [程式碼](https://github.com/hyyang0509/dugout-baseball) · [測試與部署](https://github.com/hyyang0509/dugout-baseball/actions)
 
-手機與電腦可玩的棒球球團經營遊戲。v0.7 支援 MLB 30 隊、中華職棒 6 隊、日本職棒 12 隊、81 場生成賽程、四強季後賽、多年度經營、球員成長與退役、事件、交易及遊戲財務。
+手機與電腦可玩的棒球球團經營遊戲。v2.2 支援美職 30 隊、日職 12 隊、韓職 10 隊、中職 6 隊在同一個世界進行，81 場生成賽程、四強季後賽、多年度經營、球員成長與退役、事件、交易、自由球員市場及遊戲財務。
 
 美職、日職、韓職、中職在同一個世界存檔裡同時進行；跨聯盟交流賽尚未實作。中職中文姓名，日職漢字姓名，片假名姓名提供中文音譯；韓職姓名為遊戲依讀音轉寫的漢字。能力以 1–100 分顯示（四聯盟同一把尺）。
 
 ## 開發與部署
 
 - Node.js 24，無外部前端相依套件。
-- 執行 `npm test`：117 項測試。
+- 執行 `npm test`：119 項測試。
 - 本機啟動：`python -m http.server 8000 --directory dist`，開啟 `http://localhost:8000`。
 - 網站目錄：`dist/`，不要直接發布儲存庫根目錄。
 - GitHub Pages 的 Source 選 GitHub Actions；推送到 main 後先測試再發布 dist，PR 只測試。

@@ -1,7 +1,7 @@
 // World offseason: expiring contracts, a cross-league free-agent market, foreign-player
 // quotas, then the usual aging/retirement/rookie rollover for every league.
-import {advanceSeason, contractAsk, releasePlayer, salaryFor, overall, hasBat, hasPitch, teamOf, random, addNews, salaryOf, marketSalary, LEAGUE_PAY, teamStrategy, playerAge, positionsOf, worldRating} from './engine.js?v=22';
-import {LEAGUE_ORDER, LEAGUE_NAME, HOME_LEAGUE, isForeign, userSeason, worldDatas, finishWorld, ensureContracts, trimAI} from './world.js?v=22';
+import {advanceSeason, contractAsk, releasePlayer, salaryFor, overall, hasBat, hasPitch, teamOf, random, addNews, salaryOf, marketSalary, LEAGUE_PAY, teamStrategy, playerAge, positionsOf, worldRating} from './engine.js?v=23';
+import {LEAGUE_ORDER, LEAGUE_NAME, HOME_LEAGUE, isForeign, userSeason, worldDatas, finishWorld, ensureContracts, trimAI} from './world.js?v=23';
 
 // How attractive a league is to a free agent, on top of the money.
 // v2.0: gaps narrowed so more players cross leagues.
@@ -370,7 +370,7 @@ export function completeOffseason(previous, bases) {
   if (rejected.length) { const club = nextUser.teams[w.teamId]; club.morale = Math.max(0, (club.morale ?? 50) - 5 * rejected.length); addNews(nextUser, {category: 'clubhouse', teamIds: [w.teamId], title: '入札請求被拒，球員失望', text: `${rejected.map(r => r.name).join('、')} 想挑戰美職但球團不放行，球隊氣氛下降。`}); }
   addNews(nextUser, {category: 'world', teamIds: [], title: `自由球員市場落幕：${moves.length} 人簽約，${cross.length} 人跨聯盟`, text: cross.slice(0, 6).map(m => `${m.name}（${LEAGUE_NAME[m.fromLeague]}→${teamName(m.toLeague, m.toTeam)}）`).join('、') + (cross.length ? '。' : '今年沒有跨聯盟移籍。')});
   for (const m of userSigned) addNews(nextUser, {category: 'trade', teamIds: [w.teamId], title: `簽下自由球員 ${m.name}`, text: `${m.years} 年合約，簽約金 US$${m.bonus.toLocaleString('en-US')}。來自${LEAGUE_NAME[m.fromLeague]}${teamName(m.fromLeague, m.fromTeam)}。`});
-  for (const r of userLost) addNews(nextUser, {category: 'trade', teamIds: [w.teamId], title: `${r.name} 離隊`, text: r.to ? `以自由球員身分加盟${LEAGUE_NAME[r.to.toLeague]}${teamName(r.to.toLeague, r.to.toTeam)}。` : '沒有球隊提出合約，離開三大聯盟。'});
+  for (const r of userLost) addNews(nextUser, {category: 'trade', teamIds: [w.teamId], title: `${r.name} 離隊`, text: r.to ? `以自由球員身分加盟${LEAGUE_NAME[r.to.toLeague]}${teamName(r.to.toLeague, r.to.toTeam)}。` : '沒有球隊提出合約，離開職棒。'});
   for (const id of LEAGUE_ORDER) if (id !== w.userLeague) {
     const c = w.digest.find(d => d.league === id && d.year === w.year);
     if (c) addNews(nextUser, {category: 'world', teamIds: [], title: `${LEAGUE_NAME[id]}上季冠軍：${teamName(id, c.champion)}`, text: `${leagues[w.userLeague].year} 年${LEAGUE_NAME[id]}開季，衛冕軍是 ${teamName(id, c.champion)}。`});

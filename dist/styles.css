@@ -189,6 +189,9 @@ html[data-theme=dark] .strength-track i{background:#f2c14e}
 .fa-toggle button.active{background:var(--green);color:var(--paper);font-weight:700}
 html[data-theme=dark] .fa-toggle button.active{background:#f2c14e;color:#07201a}
 .fa-filters{margin:0 18px;padding-top:6px}
+.fa-refine{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin:10px 18px 4px}
+.fa-select{border:2px solid var(--line);border-radius:3px;background:var(--paper);color:var(--ink);padding:6px 8px;min-height:40px;font-size:13px}
+.fa-check{display:inline-flex;align-items:center;gap:6px;font-size:13px;min-height:40px;cursor:pointer}
 .fa-bid-cell{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:12px}
 .small-btn{min-height:36px;padding:6px 14px}
 .bid-chance{font-weight:700;margin:14px 0 4px}
