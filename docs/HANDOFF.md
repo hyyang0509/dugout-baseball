@@ -1,4 +1,7 @@
-# DUGOUT 開發交接
+# BM27（The Baseball Manager 2027，原名 DUGOUT）開發交接
+
+- 遊戲顯示名稱為 BM27／The Baseball Manager 2027；網址、儲存庫名稱與存檔鍵仍為 dugout，不可改名，否則舊存檔讀不到。
+- 新世界由 `engine.js` 的 `START_YEAR`（2027）開季；沒有 year 的舊存檔在 migrateSeason 視為 2026，已存在的世界存檔維持原本年份。
 
 目前來源為 Sites v0.6，提交 eea75977a7280239c45d18cc8512b7839a6539ca。GitHub 專案現為後續主要來源，試玩網站為 https://hyyang0509.github.io/dugout-baseball/ 。未複製 Sites 身分設定、權杖或裝置存檔。
 

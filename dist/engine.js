@@ -1,5 +1,5 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=23';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=24';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
 export const VERSION=5;
 export const SEASON_GAMES=81;
@@ -148,12 +148,14 @@ export function autoLineup(roster,condition={},bias=null){
  const assignments=assignFielding(pool.map(p=>p.id),data,{},scores);
  return assignments?Object.keys(assignments).sort((a,b)=>val(byId[b])-val(byId[a])):[];
 }
+// New games open in 2027 with the end-of-2026 rosters. Saves without a year were 2026 saves (see migrateSeason).
+export const START_YEAR=2027;
 export function makeSeason(data,teamId,seed=Date.now()){
  const teams={};const condition={};
  for(const p of data.players)condition[p.id]={energy:100,injury:0,form:0,formDays:0};
  for(const t of data.teams){const roster=data.players.filter(p=>p.team_id===t.id);const pitchers=roster.filter(hasPitch).sort((a,b)=>(b.role==='SP')-(a.role==='SP')||pitchValue(b)-pitchValue(a));
  teams[t.id]={w:0,l:0,rs:0,ra:0,lineup:autoLineup(roster),rotation:pitchers.slice(0,5).map(p=>p.id)};}
- return migrateSeason({league:data.league||'MLB',...(data.world?{world:true}:{}),version:VERSION,dataVersion:data.generated_at,teamId,rng:(seed>>>0)||1234567,day:0,phase:'regular',schedule:makeSchedule(data.teams.map(t=>t.id)),teams,condition,batting:{},pitching:{},history:[],lastGame:null,event:null,eventLog:[],playoffs:null,champion:null,createdAt:new Date().toISOString()},data);
+ return migrateSeason({league:data.league||'MLB',...(data.world?{world:true}:{}),version:VERSION,dataVersion:data.generated_at,year:START_YEAR,teamId,rng:(seed>>>0)||1234567,day:0,phase:'regular',schedule:makeSchedule(data.teams.map(t=>t.id)),teams,condition,batting:{},pitching:{},history:[],lastGame:null,event:null,eventLog:[],playoffs:null,champion:null,createdAt:new Date().toISOString()},data);
 }
 function batting(s,id){return s.batting[id]??=( {g:0,pa:0,ab:0,h:0,d:0,t:0,hr:0,rbi:0,bb:0,k:0,r:0,sf:0});}
 function pitching(s,id){return s.pitching[id]??=({g:0,gs:0,w:0,l:0,sv:0,hld:0,bs:0,qs:0,outs:0,h:0,r:0,er:0,hr:0,bb:0,k:0,pitches:0});}

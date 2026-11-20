@@ -55,3 +55,15 @@ test('a world save started on the 2025 KBO roster keeps loading after the refres
   assert.ok(W.worldDatas(fresh, newBases).KBO.players.some(p => p.source_name === '왕옌청' && teamOf(fresh.leagues.KBO, p) === 'kbo:HH'));
   assert.deepEqual(W.legacyRosterNeeds(JSON.parse(JSON.stringify(fresh)), newBases), []);
 });
+
+test('new worlds open in 2027; saves without a year stay 2026 saves', async () => {
+  const {START_YEAR, migrateSeason, makeSeason} = await import('../dist/engine.js');
+  assert.equal(START_YEAR, 2027);
+  const bases = Object.fromEntries(W.LEAGUE_ORDER.map(id => [id, W.toWorldScale(id, read(`roster_${id.toLowerCase()}.json`))]));
+  const w = W.makeWorld(bases, 'KBO', 'kbo:HH', 5);
+  assert.equal(w.year, 2027);
+  assert.ok(W.LEAGUE_ORDER.every(id => w.leagues[id].year === 2027));
+  const old = makeSeason(bases.KBO, 'kbo:HH', 9); delete old.year;
+  migrateSeason(old, bases.KBO);
+  assert.equal(old.year, 2026);
+});
