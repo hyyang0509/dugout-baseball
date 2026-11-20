@@ -328,4 +328,4 @@ html[data-theme=dark]{--art-board:#0a2a20;--art-dim:#2f5a49}
 .pdb-search:focus-within{outline:2px solid currentColor;outline-offset:1px}
 .pdb-count{margin:0 0 8px}
 .pdb-more{margin:14px auto 0;display:block}
-.pdb-table td,.pdb-table th{padding-inline:10px}.pdb-table .player-name{min-width:0}.pdb-table .player-name small .league-tag{font-size:9px}
+.pdb-table td,.pdb-table th{padding-inline:10px}.pdb-table .player-name{min-width:0;display:block;width:100%}.pdb-table td:first-child,.pdb-table th:first-child{text-align:left;width:auto}.pdb-table td:nth-child(2),.pdb-table th:nth-child(2){text-align:center;min-width:0}.pdb-table .player-name small .league-tag{font-size:9px}
