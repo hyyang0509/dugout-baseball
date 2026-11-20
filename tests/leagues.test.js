@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {LEAGUES,saveKey} from '../dist/leagues.js';
-import {makeSeason,makeSchedule,nextDay,resolveEvent,assignFielding,advanceSeason,seasonData,migrateSeason,payroll,evaluateTrade,executeTrade,rosterFor} from '../dist/engine.js';
+import {START_YEAR,makeSeason,makeSchedule,nextDay,resolveEvent,assignFielding,advanceSeason,seasonData,migrateSeason,payroll,evaluateTrade,executeTrade,rosterFor} from '../dist/engine.js';
 
 test('league save slots preserve the original MLB key',()=>{
  assert.equal(saveKey('MLB'),'dugout.save.v1');
@@ -26,7 +26,7 @@ for(const league of ['CPBL','NPB','KBO']){
   while(s.phase!=='finished'&&days++<110){if(s.event)resolveEvent(s,data,s.event.choices.length-1);nextDay(s,data);}
   assert.equal(s.phase,'finished');assert.ok(s.champion);for(const t of Object.values(s.teams))assert.equal(t.w+t.l,81);
   const next=advanceSeason(s,data),restored=JSON.parse(JSON.stringify(next)),evolved=seasonData(data,restored);migrateSeason(restored,evolved);
-  assert.equal(restored.year,2027);assert.equal(restored.league,league);assert.ok(restored.playerPool.length>=data.players.length);
+  assert.equal(restored.year,START_YEAR+1);assert.equal(restored.league,league);assert.ok(restored.playerPool.length>=data.players.length);
   nextDay(restored,evolved);assert.equal(restored.day,1);assert.equal(JSON.stringify(data),base);
   // At least one fair deal must work with non-MLB IDs and retain legal rosters.
   const trading=makeSeason(data,data.teams[0].id,31),targetTeam=data.teams[1].id;
