@@ -14,6 +14,7 @@
 - advanceSeason 克隆舊存檔後演化。重新開局必須使用獨立的 baseData 初始名單。
 - 世界存檔用 world.packWorld 寫入：playerPool 中與原始快照相同的靜態欄位（STATIC_KEYS：來源網址、原文姓名、資料來源、投打、背號等）不寫入，restoreWorld 一開始以 unpackPools 依球員 id 從目前 bases 補回。新增會在比賽中改變的欄位時，不可放進 STATIC_KEYS。非使用者聯盟 trimAI 時清掉 s.offseason（年度變化清單只給使用者聯盟看）。
 - 先發投手：chooseStarter 先在輪值中找體力 ≥ 70、最久沒先發（condition.lastStart）的人；都不行才退回依體力與能力挑選。
+- 球員姓名連結：app.js 的 MutationObserver 在 #app 與 #modal-root 變動後呼叫 linkifyNames，把一般文字中的現役球員姓名換成 .player-link 按鈕（data-action="player"，含 data-league）。按鈕、select、svg、.profile-header 與 [data-nolink] 內不處理；要排除某區塊就加 data-nolink。player 動作會記住原本的視窗（modal.back），關閉後回去。
 - 虛構新人姓名依聯盟（engine.js ROOKIE_NAMES），並避開同聯盟現有球員姓名。
 - 電腦球隊每場開賽前自動重排九人打線；玩家球隊預設自動，手動調整後（`state.manualLineup`）改用玩家打線，僅替補傷兵與疲勞球員。守位必須完整且不重複。
 - 引擎使用種子 RNG，不改為 Math.random。

@@ -1,12 +1,12 @@
-import {eventArt,defenseDiagram} from './art.js?v=26';
-import {LEAGUES,loadLeague,loadLegacyRoster} from './leagues.js?v=26';
-import {packWorld,WORLD_KEY,LEAGUE_ORDER,LEAGUE_NAME,LEAGUE_SHORT,HOME_LEAGUE,isForeign,toWorldScale,makeWorld,worldDatas,worldNextDay,restoreWorld,legacyRosterNeeds,attachLegacyPool,userSeason,worldTop,leagueStrength,isKnown,ratingView,ovrView,startScouting,scoutCost,scoutingDaysLeft,scouting,SCOUT_DAYS,SCOUT_SLOTS} from './world.js?v=26';
-import {startOffseason,completeOffseason,setExpiringDecision,setExpiringOffer,releaseInOffseason,setPostingDecision,setBid,bidStatus,leagueSalary,offerValue,FOREIGN_QUOTA,POSTING_FEE} from './offseason.js?v=26';
-import {portraitSVG,managerCapSVG} from './portrait.js?v=26';
-import {BAT_COLUMNS,PIT_COLUMNS,statRows,batLine,pitchLine,ip} from './stats.js?v=26';
-import {MANAGER_STYLES,managerOf,managerCandidates,managerFee,hireManager,setSelfManaged,gmOf,TITLES,titleInfo,boardStatus,jobOffers,takeJob,fansOf,sentimentLabel,ensureFront} from './front.js?v=26';
-import {CATEGORIES,teamReport,leagueProfiles,tradeImpact,assistantOf,assistantReport,assistantVerdict,assistantCandidates,assistantFee,assistantStars,hireAssistant,ASSISTANT_STYLES} from './gm.js?v=26';
-import {START_YEAR,teamStrategy,STRATEGY_LABEL,STRATEGY_HINT,untouchables,tradeCounters,playerTraits,TRAIT_LABELS,TRAIT_HINTS,RARITY_LABEL,gateEstimate,saveVersionSupported,missingSavePlayers,makeSeason,nextDay,resolveEvent,standings,autoLineup,availableLineup,chooseStarter,hasBat,hasPitch,batValue,pitchValue,teamOf,rosterFor,positionsOf,migrateSeason,setLineup,setPosition,assignFielding,salaryOf,payroll,remainingSalary,evaluateTrade,executeTrade,setTicketPrice,seasonGames,tradeDeadline,salaryFractionRemaining,dailySalary,EVENT_RATE,eventChoiceStatus,advanceSeason,seasonData,playerAge,overall,positionLabel,ovr,potential,g100,g100delta,primaryPosition,normOffer,isImport,importCount,FOREIGN_LIMIT,releaseCheck,releasePlayer,clamp,salaryFor,contractYears,offerOutlook,OUTLOOK_LABEL,extensionCheck,extendContract,freeAgentPool,signCheck,signFreeAgent,freeAgentDeadline} from './engine.js?v=26';
+import {eventArt,defenseDiagram} from './art.js?v=27';
+import {LEAGUES,loadLeague,loadLegacyRoster} from './leagues.js?v=27';
+import {packWorld,WORLD_KEY,LEAGUE_ORDER,LEAGUE_NAME,LEAGUE_SHORT,HOME_LEAGUE,isForeign,toWorldScale,makeWorld,worldDatas,worldNextDay,restoreWorld,legacyRosterNeeds,attachLegacyPool,userSeason,worldTop,leagueStrength,isKnown,ratingView,ovrView,startScouting,scoutCost,scoutingDaysLeft,scouting,SCOUT_DAYS,SCOUT_SLOTS} from './world.js?v=27';
+import {startOffseason,completeOffseason,setExpiringDecision,setExpiringOffer,releaseInOffseason,setPostingDecision,setBid,bidStatus,leagueSalary,offerValue,FOREIGN_QUOTA,POSTING_FEE} from './offseason.js?v=27';
+import {portraitSVG,managerCapSVG} from './portrait.js?v=27';
+import {BAT_COLUMNS,PIT_COLUMNS,statRows,batLine,pitchLine,ip} from './stats.js?v=27';
+import {MANAGER_STYLES,managerOf,managerCandidates,managerFee,hireManager,setSelfManaged,gmOf,TITLES,titleInfo,boardStatus,jobOffers,takeJob,fansOf,sentimentLabel,ensureFront} from './front.js?v=27';
+import {CATEGORIES,teamReport,leagueProfiles,tradeImpact,assistantOf,assistantReport,assistantVerdict,assistantCandidates,assistantFee,assistantStars,hireAssistant,ASSISTANT_STYLES} from './gm.js?v=27';
+import {START_YEAR,teamStrategy,STRATEGY_LABEL,STRATEGY_HINT,untouchables,tradeCounters,playerTraits,TRAIT_LABELS,TRAIT_HINTS,RARITY_LABEL,gateEstimate,saveVersionSupported,missingSavePlayers,makeSeason,nextDay,resolveEvent,standings,autoLineup,availableLineup,chooseStarter,hasBat,hasPitch,batValue,pitchValue,teamOf,rosterFor,positionsOf,migrateSeason,setLineup,setPosition,assignFielding,salaryOf,payroll,remainingSalary,evaluateTrade,executeTrade,setTicketPrice,seasonGames,tradeDeadline,salaryFractionRemaining,dailySalary,EVENT_RATE,eventChoiceStatus,advanceSeason,seasonData,playerAge,overall,positionLabel,ovr,potential,g100,g100delta,primaryPosition,normOffer,isImport,importCount,FOREIGN_LIMIT,releaseCheck,releasePlayer,clamp,salaryFor,contractYears,offerOutlook,OUTLOOK_LABEL,extensionCheck,extendContract,freeAgentPool,signCheck,signFreeAgent,freeAgentDeadline} from './engine.js?v=27';
 const $=s=>document.querySelector(s);let KEY=WORLD_KEY;let world=null,bases={},datas={},viewLeague=null;let baseData,data,state=null,page='dashboard',rosterTab='lineup',leaderTab='teams',statKind='bat',statSort={bat:'ops',pit:'era'},busy=false,modal=null,selectedTeam='mlb:119',filter='',starter=null,saveError=false;let newsFilter='all',newsDay='all';
 let activeLeague='MLB';
 const leagueName=()=>LEAGUE_NAME[activeLeague]||LEAGUES[activeLeague].name;
@@ -32,7 +32,7 @@ function render(){
  if(!state){renderWelcome();return;}
  try{ensureFront(state,data);}catch(err){console.warn(err);}
  const t=team(state.teamId);const navs=[['dashboard','home','球團首頁'],...(world?.offseason?[['offseason','users','休賽季']]:[]),['roster','users','名單與打線'],['standings','chart','戰績與數據'],['news','news','聯盟新聞'],['office','office','球團辦公室']];
- $('#app').innerHTML=`<aside class="sidebar"><a class="wordmark" href="#" data-action="nav" data-page="dashboard"><span class="brand-ball">B</span>BM27</a><div class="side-team">${badge(t.id)}<div><strong>${esc(t.zh)}</strong><small>${esc(leagueName())} · 棒球經理</small></div></div><span class="nav-caption">你的球團</span><nav>${navs.map(([id,i,label])=>`<button class="nav-item ${page===id?'active':''}" data-action="nav" data-page="${id}">${icon(i)}<span>${label}</span>${page===id?'<i></i>':''}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="season-label"><span class="live-dot"></span>${seasonYear()} 模擬賽季</div><p>${seasonLength()} 場半季 · 球團管理</p><button class="text-btn" data-action="help">${icon('info')} 遊戲說明</button></div></aside><main class="main"><header class="topbar"><div class="mobile-brand"><span class="brand-ball">B</span><strong>BM27</strong></div><div class="breadcrumb">球團管理 <span>/</span> ${navs.find(n=>n[0]===page)[2]}</div><div class="top-right">${themeButton()}<span class="save-state ${saveError?'warning':''}">${icon(saveError?'info':'check')}<span>${saveError?'儲存失敗':'本機自動儲存'}</span></span><button class="avatar" data-action="nav" data-page="office" aria-label="球團辦公室">${managerCapSVG(team(state.teamId)?.color)}</button></div></header><div class="page-content">${page==='dashboard'?dashboard():page==='offseason'&&world?.offseason?offseasonPage():page==='roster'?roster():page==='standings'?standingsPage():page==='news'?newsPage():office()}</div><footer class="footer"><span>The Baseball Manager 2027</span><span>v2.5 · ${esc(activeLeague)} 模擬賽季</span></footer></main><nav class="mobile-nav">${navs.map(([id,i,label])=>`<button data-action="nav" data-page="${id}" class="${page===id?'active':''}">${icon(i)}<span>${label}</span></button>`).join('')}</nav>${busy?'<div class="sim-overlay" role="status"><span class="ball-loader"></span><strong>球賽進行中…</strong><span>正在更新全聯盟戰績</span></div>':''}`;
+ $('#app').innerHTML=`<aside class="sidebar"><a class="wordmark" href="#" data-action="nav" data-page="dashboard"><span class="brand-ball">B</span>BM27</a><div class="side-team">${badge(t.id)}<div><strong>${esc(t.zh)}</strong><small>${esc(leagueName())} · 棒球經理</small></div></div><span class="nav-caption">你的球團</span><nav>${navs.map(([id,i,label])=>`<button class="nav-item ${page===id?'active':''}" data-action="nav" data-page="${id}">${icon(i)}<span>${label}</span>${page===id?'<i></i>':''}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="season-label"><span class="live-dot"></span>${seasonYear()} 模擬賽季</div><p>${seasonLength()} 場半季 · 球團管理</p><button class="text-btn" data-action="help">${icon('info')} 遊戲說明</button></div></aside><main class="main"><header class="topbar"><div class="mobile-brand"><span class="brand-ball">B</span><strong>BM27</strong></div><div class="breadcrumb">球團管理 <span>/</span> ${navs.find(n=>n[0]===page)[2]}</div><div class="top-right">${themeButton()}<span class="save-state ${saveError?'warning':''}">${icon(saveError?'info':'check')}<span>${saveError?'儲存失敗':'本機自動儲存'}</span></span><button class="avatar" data-action="nav" data-page="office" aria-label="球團辦公室">${managerCapSVG(team(state.teamId)?.color)}</button></div></header><div class="page-content">${page==='dashboard'?dashboard():page==='offseason'&&world?.offseason?offseasonPage():page==='roster'?roster():page==='standings'?standingsPage():page==='news'?newsPage():office()}</div><footer class="footer"><span>The Baseball Manager 2027</span><span>v2.6 · ${esc(activeLeague)} 模擬賽季</span></footer></main><nav class="mobile-nav">${navs.map(([id,i,label])=>`<button data-action="nav" data-page="${id}" class="${page===id?'active':''}">${icon(i)}<span>${label}</span></button>`).join('')}</nav>${busy?'<div class="sim-overlay" role="status"><span class="ball-loader"></span><strong>球賽進行中…</strong><span>正在更新全聯盟戰績</span></div>':''}`;
  renderModal();
 }
 function renderWelcome(){
@@ -100,7 +100,7 @@ function roster(){
  <div class="tabs">${[['lineup','先發打線'],['batters',`打者 ${batters.length}`],['pitchers',`投手 ${pitches.length}`],['stats','本季成績']].map(([id,label])=>`<button class="${rosterTab===id?'active':''}" data-action="roster-tab" data-tab="${id}">${label}</button>`).join('')}</div>
  ${rosterTab==='stats'?teamStatsPanel():rosterTab==='lineup'?`<div class="lineup-layout"><section class="panel"><div class="panel-header"><h2>先發九人</h2><span class="small-muted">九個守位各一人 · 守位可互換</span></div><div class="lineup-list">
  ${lineup.map((id,i)=>{const p=player(id);return `<div class="lineup-row"><span class="order-num">${i+1}</span><div class="lineup-player"><select data-lineup="${i}" aria-label="第 ${i+1} 棒球員">${batters.filter(q=>!state.condition[q.id].injury).map(q=>`<option value="${q.id}" ${id===q.id?'selected':''}>${esc(q.name)} · ${esc(positionLabel(q))}</option>`).join('')}</select><div>${importTag(p)}${tag(p)}<button class="inline-link" data-action="player" data-id="${p.id}">總評 ${g100(ovr(p))} · 潛力 ${g100(potential(p,state))} · 詳情</button></div></div><div class="lineup-position"><label for="position-${i}">守位</label><select id="position-${i}" data-position="${id}" aria-label="${esc(p.name)} 守位">${[...positionsOf(p).filter(pos=>pos!=='P'),...(posMap[id]&&!positionsOf(p).includes(posMap[id])?[posMap[id]]:[])].map(pos=>`<option value="${pos}" ${posMap[id]===pos?'selected':''}>${pos}${positionsOf(p).includes(pos)?'':'!'}</option>`).join('')}</select></div><div class="lineup-energy">${energyDisplay(p)}</div><div class="order-actions"><button data-action="move" data-index="${i}" data-delta="-1" ${i===0?'disabled':''} aria-label="上移第 ${i+1} 棒">${icon('up')}</button><button data-action="move" data-index="${i}" data-delta="1" ${i===8?'disabled':''} aria-label="下移第 ${i+1} 棒">${icon('down')}</button></div></div>`;}).join('')}
- </div></section><div><section class="panel defense-panel"><div class="panel-header"><h2>守備配置</h2>${lineup.some(id=>posMap[id]==='DH')?`<span class="small-muted">DH ${esc(player(lineup.find(id=>posMap[id]==='DH'))?.name||'')}</span>`:''}</div>${defenseDiagram([...lineup.map(id=>({pos:posMap[id],name:player(id)?.name})),{pos:'P',name:player(starter||chooseStarter(state,data,state.teamId))?.name}])}</section><section class="panel lineup-summary"><span class="eyebrow">LINEUP SNAPSHOT</span><h2>先發打線概況</h2>${[['接觸能力','contact'],['長打火力','power'],['選球耐心','eye'],['跑壘速度','speed']].map(([label,key])=>{const v=Math.round(lineup.reduce((a,id)=>a+(player(id).ratings[key]||50),0)/9);return `<div class="ability-bar"><div><span>${label}</span><strong>${g100(v)}</strong></div><div><i style="width:${g100(v)}%"></i></div></div>`;}).join('')}<p>球員名字後面是主守位，括號內是可兼守位（守備小幅打折）。守位標「!」代表缺人時緊急守不熟的位置，守備大幅打折。${activeLeague==='MLB'?'守位來自主守位、近三季出賽紀錄與相鄰守位。':'主守位來自官方名單；可兼守位與日職內外野細分為遊戲估計。'}選擇已被占用的守位時，兩名球員若都適任，會直接互換。</p></section><div class="info-note">${icon('info')}打者每場消耗 10 點體力，連續出賽隔日恢復 5 點；休息後可恢復 16 點。二刀流另計投球消耗與恢復。</div></div></div>`:
+ </div></section><div><section class="panel defense-panel"><div class="panel-header"><h2>守備配置</h2>${lineup.some(id=>posMap[id]==='DH')?`<span class="small-muted">DH ${esc(player(lineup.find(id=>posMap[id]==='DH'))?.name||'')}</span>`:''}</div>${defenseDiagram([...lineup.map(id=>({pos:posMap[id],name:player(id)?.name,id})),{pos:'P',name:player(starter||chooseStarter(state,data,state.teamId))?.name,id:starter||chooseStarter(state,data,state.teamId)}])}</section><section class="panel lineup-summary"><span class="eyebrow">LINEUP SNAPSHOT</span><h2>先發打線概況</h2>${[['接觸能力','contact'],['長打火力','power'],['選球耐心','eye'],['跑壘速度','speed']].map(([label,key])=>{const v=Math.round(lineup.reduce((a,id)=>a+(player(id).ratings[key]||50),0)/9);return `<div class="ability-bar"><div><span>${label}</span><strong>${g100(v)}</strong></div><div><i style="width:${g100(v)}%"></i></div></div>`;}).join('')}<p>球員名字後面是主守位，括號內是可兼守位（守備小幅打折）。守位標「!」代表缺人時緊急守不熟的位置，守備大幅打折。${activeLeague==='MLB'?'守位來自主守位、近三季出賽紀錄與相鄰守位。':'主守位來自官方名單；可兼守位與日職內外野細分為遊戲估計。'}選擇已被占用的守位時，兩名球員若都適任，會直接互換。</p></section><div class="info-note">${icon('info')}打者每場消耗 10 點體力，連續出賽隔日恢復 5 點；休息後可恢復 16 點。二刀流另計投球消耗與恢復。</div></div></div>`:
  `<section class="panel"><div class="table-scroll"><table class="player-table"><thead><tr><th>球員</th><th>總評</th><th>潛力</th><th>守位</th><th>狀態</th><th>目前體力</th>${(rosterTab==='pitchers'?['球威','控球','壓制','體力上限']:['接觸','長打','選球','速度','守備']).map(l=>`<th>${l}</th>`).join('')}<th>本季遊戲薪資</th></tr></thead><tbody>${(rosterTab==='pitchers'?pitches:batters).map(p=>`<tr><td><button class="player-name" data-action="player" data-id="${p.id}">${esc(p.name)}${importTag(p)}<small>#${esc(p.jersey_number||'—')}</small></button></td><td><strong class="ovr-badge">${g100(ovr(p))}</strong></td><td>${g100(potential(p,state))}</td><td><span class="position">${rosterTab==='pitchers'?(p.role||'P'):positionLabel(p)}</span></td><td>${tag(p)}</td><td>${energyDisplay(p)}</td>${(rosterTab==='pitchers'?['stuff','control','movement','stamina']:['contact','power','eye','speed','defense']).map(k=>`<td>${rating(p.ratings[k])}</td>`).join('')}<td>${money(salaryFor(state,p))}</td></tr>`).join('')}</tbody></table></div></section><div class="info-note">${icon('info')}目前體力會影響比賽表現；體力上限是投手能力評級。所有薪資為此短賽季的遊戲設定，非真實合約。</div>`}`;
 }
 function standingsCore(){
@@ -336,6 +336,46 @@ async function simulate(days){
  }catch(e){toast('模擬未完成：'+e.message);}
  finally{busy=false;modal=state.event?{type:'event'}:state.lastGame?{type:'box'}:null;render();}
 }
+// Player names anywhere on screen open the player card. Explicit buttons stay as they are;
+// plain text (news, recaps, reports, headings) gets links for names that map to exactly one
+// current player. Names need 3+ characters so short names do not match ordinary words.
+function playerLeague(id){if(!world)return null;if(datas[world.userLeague]?.players.some(p=>p.id===id))return world.userLeague;return LEAGUE_ORDER.find(l=>datas[l]?.players.some(p=>p.id===id))||null;}
+let nameIndex=null,nameIndexKey='';
+function buildNameIndex(){
+ const leagues=world?[world.userLeague,...LEAGUE_ORDER.filter(l=>l!==world.userLeague)]:[null];
+ const src=l=>(l?datas[l]:data)?.players||[];
+ const key=leagues.map(l=>src(l).length+':'+(src(l)[0]?.id||'')).join('|')+(world?.year||state?.year||'')+(state?.teamId||'');
+ if(nameIndex&&key===nameIndexKey)return nameIndex;
+ const map=new Map(),bad=new Set();
+ leagues.forEach((l,rank)=>{for(const p of src(l)){for(const n of new Set([p.name,p.name.replace(/（.*）$/,'')])){
+  if(!n||n.length<3)continue;
+  const cur=map.get(n);if(!cur)map.set(n,{id:p.id,league:l,rank});else if(cur.id!==p.id&&cur.rank===rank)bad.add(n);
+ }}});
+ for(const n of bad)map.delete(n);
+ const names=[...map.keys()].sort((a,b)=>b.length-a.length).map(n=>n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+ nameIndex={map,re:names.length?new RegExp(names.join('|'),'g'):null};nameIndexKey=key;return nameIndex;
+}
+const NO_LINK='button,a,select,option,textarea,input,label,svg,script,style,.player-link,.profile-header,[data-nolink]';
+function linkifyNames(root){
+ if(!root||!state)return;const {map,re}=buildNameIndex();if(!re)return;
+ const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.nodeValue.trim().length>=3&&!n.parentElement?.closest(NO_LINK)?NodeFilter.FILTER_ACCEPT:NodeFilter.FILTER_REJECT});
+ const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
+ for(const node of nodes){
+  const text=node.nodeValue;re.lastIndex=0;let m,last=0,frag=null;
+  while((m=re.exec(text))){
+   const n=m[0],before=text[m.index-1]||'',after=text[m.index+n.length]||'';
+   if(/[A-Za-z]/.test(n[0])&&(/[A-Za-z]/.test(before)||/[A-Za-z]/.test(after)))continue;
+   const hit=map.get(n);frag??=document.createDocumentFragment();
+   frag.append(text.slice(last,m.index));
+   const b=document.createElement('button');b.type='button';b.className='player-link';b.dataset.action='player';b.dataset.id=hit.id;if(hit.league)b.dataset.league=hit.league;b.textContent=n;frag.append(b);last=m.index+n.length;
+  }
+  if(frag){frag.append(text.slice(last));node.replaceWith(frag);}
+ }
+}
+let linkQueued=false;
+const linkObserver=new MutationObserver(()=>{if(linkQueued)return;linkQueued=true;queueMicrotask(()=>{linkObserver.disconnect();try{linkifyNames($('#app'));linkifyNames($('#modal-root'));}catch(err){console.warn(err);}finally{observeLinks();linkQueued=false;}});});
+function observeLinks(){for(const id of ['#app','#modal-root']){const el=$(id);if(el)linkObserver.observe(el,{childList:true,subtree:true});}}
+observeLinks();
 document.addEventListener('click',async e=>{
  const el=e.target.closest('[data-action]');if(!el||busy)return;const action=el.dataset.action;if(el.tagName==='A')e.preventDefault();
  if(action==='league'){await switchLeague(el.dataset.league);return;}
@@ -370,8 +410,9 @@ document.addEventListener('click',async e=>{
  if(action==='stat-sort'){statSort[el.dataset.kind]=el.dataset.key;render();}
  if(action==='news-filter'){newsFilter=el.dataset.filter;render();}
  if(action==='leader-tab'){leaderTab=el.dataset.tab;render();}
- if(action==='help'||action==='reset'||action==='box'||action==='event'||action==='player'){modal={type:action,id:el.dataset.id,league:el.dataset.league};renderModal();}
- if(action==='close-modal'||(action==='backdrop-close'&&e.target===el)){modal=null;renderModal();}
+ if(action==='player'){const league=el.dataset.league||playerLeague(el.dataset.id);if(world&&!league){toast('這名球員已不在任何球隊名單中。');return;}if(!world&&!player(el.dataset.id)){toast('這名球員已不在名單中。');return;}const back=modal&&modal.type!=='player'?modal:modal?.back||null;modal={type:'player',id:el.dataset.id,league,back};renderModal();}
+ if(action==='help'||action==='reset'||action==='box'||action==='event'){modal={type:action,id:el.dataset.id,league:el.dataset.league};renderModal();}
+ if(action==='close-modal'||(action==='backdrop-close'&&e.target===el)){modal=modal?.back||null;renderModal();}
  if(action==='resolve-event'){try{resolveEvent(state,data,Number(el.dataset.index));save();modal=null;render();toast('決策已記錄。');}catch(err){toast(err.message);renderModal();}}
  if(action==='auto-lineup'){state.manualLineup=false;const ids=autoLineup(own(),state.condition);state.teams[state.teamId].fielding=assignFielding(ids,data);setLineup(state,data,state.teamId,ids);save();render();toast('已切回自動打線：每場依守位、手感與體力重排。');}
  if(action==='move'){const ids=availableLineup(state,data,state.teamId),i=Number(el.dataset.index),j=i+Number(el.dataset.delta);if(j>=0&&j<9){[ids[i],ids[j]]=[ids[j],ids[i]];state.teams[state.teamId].lineup=ids;state.manualLineup=true;save();render();}}
@@ -403,7 +444,8 @@ document.addEventListener('change',e=>{
 });
 document.addEventListener('input',e=>{if(e.target.id==='team-search'){filter=e.target.value;const pos=e.target.selectionStart;renderWelcome();$('#team-search').focus();$('#team-search').setSelectionRange(pos,pos);}});
 document.addEventListener('keydown',e=>{
- if(e.key==='Escape'&&modal){modal=null;renderModal();}
+ if(e.key==='Escape'&&modal){modal=modal.back||null;renderModal();}
+ if((e.key==='Enter'||e.key===' ')&&e.target.closest?.('.defense-link')){e.preventDefault();e.target.closest('.defense-link').dispatchEvent(new MouseEvent('click',{bubbles:true}));}
  if(e.key==='Tab'&&modal){const nodes=[...document.querySelectorAll('.modal button,.modal select,.modal input')].filter(el=>!el.disabled);if(!nodes.length)return;const first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
 });
 async function switchLeague(id){

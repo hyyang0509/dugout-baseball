@@ -311,3 +311,11 @@ html[data-theme=dark]{--art-board:#0a2a20;--art-dim:#2f5a49}
 .defense-art{width:100%;height:auto;display:block;padding:0 10px}
 @media(max-width:900px){.lineup-layout>div:last-child{display:block}.lineup-layout .lineup-summary{display:none}}
 @media(max-width:640px){.event-art{margin-top:16px}.scene-art{max-height:110px}}
+
+/* v2.6 player names anywhere open the player card */
+.player-link{all:unset;cursor:pointer;color:inherit;font:inherit;text-decoration:underline dotted;text-decoration-color:color-mix(in srgb,currentColor 45%,transparent);text-underline-offset:3px;border-radius:3px}
+.player-link:hover{text-decoration-style:solid;text-decoration-color:currentColor}
+.player-link:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.defense-link{cursor:pointer}
+.defense-link:hover rect,.defense-link:focus rect{stroke-width:2;opacity:1}
+.defense-link:focus{outline:none}
