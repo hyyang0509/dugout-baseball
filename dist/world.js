@@ -1,7 +1,7 @@
 // World mode: MLB, NPB, KBO and CPBL run side by side in one save, on one rating scale.
 // Each league keeps its own season state (schedule, standings, playoffs); the user
 // manages one club and the other two leagues are fully simulated by the AI.
-import {makeSeason, nextDay, seasonData, migrateSeason, standings, overall, ovr, primaryPosition, hasBat, hasPitch, teamOf, addNews, VERSION, LEAGUE_SCALE, worldRating, salaryOf} from './engine.js?v=21';
+import {makeSeason, nextDay, seasonData, migrateSeason, standings, overall, ovr, primaryPosition, hasBat, hasPitch, teamOf, addNews, VERSION, LEAGUE_SCALE, worldRating, salaryOf} from './engine.js?v=22';
 
 export const WORLD_VERSION = 1;
 export const WORLD_KEY = 'dugout.world.v1';
@@ -160,6 +160,21 @@ export function finishWorld(w, datas, maxDays = 400) {
   }
   if (!worldFinished(w)) throw new Error('其他聯盟的球季未能完成。');
   return w;
+}
+
+/**
+ * Leagues in a parsed save that were started from an older roster snapshot and have not
+ * stored their own player pool yet (first season). Returns [{id, dataVersion}].
+ */
+export function legacyRosterNeeds(parsed, bases) {
+  return LEAGUE_ORDER.filter(id => {
+    const s = parsed?.leagues?.[id];
+    return s && !s.playerPool && bases[id] && s.dataVersion && s.dataVersion !== bases[id].generated_at;
+  }).map(id => ({id, dataVersion: parsed.leagues[id].dataVersion}));
+}
+/** Freezes that league's save on the roster it started with (a world-scaled copy). */
+export function attachLegacyPool(parsed, id, scaledData) {
+  parsed.leagues[id].playerPool = structuredClone(scaledData.players);
 }
 
 /** Validates and migrates a parsed save. Throws with a readable message when unusable. */
