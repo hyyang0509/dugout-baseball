@@ -1,7 +1,7 @@
 // World mode: MLB, NPB, KBO and CPBL run side by side in one save, on one rating scale.
 // Each league keeps its own season state (schedule, standings, playoffs); the user
 // manages one club and the other two leagues are fully simulated by the AI.
-import {makeSeason, nextDay, seasonData, migrateSeason, standings, overall, ovr, primaryPosition, hasBat, hasPitch, teamOf, addNews, VERSION, LEAGUE_SCALE, worldRating, salaryOf} from './engine.js?v=25';
+import {makeSeason, nextDay, seasonData, migrateSeason, standings, overall, ovr, primaryPosition, hasBat, hasPitch, teamOf, addNews, VERSION, LEAGUE_SCALE, worldRating, salaryOf} from './engine.js?v=26';
 
 export const WORLD_VERSION = 1;
 export const WORLD_KEY = 'dugout.world.v1';
@@ -92,6 +92,33 @@ export function trimAI(s) {
   if (Array.isArray(s.news)) s.news = s.news.slice(0, 60);
   s.lastGame = null;
   s.eventLog = (s.eventLog || []).slice(0, 10);
+  // The yearly change report is only ever shown for the user's own league.
+  s.offseason = null;
+}
+
+// Save compaction. Pool players carry source metadata that never changes in play; a
+// packed save drops those fields when they still match the original snapshot and
+// restoreWorld fills them back. Ratings, age and everything else stay in the save.
+const STATIC_KEYS = ['source_url', 'source_name', 'roster_source', 'positions_source', 'ratings_source', 'name_transliterated', 'throws', 'bats', 'jersey_number', 'source_id', 'positions_note', 'position_evidence'];
+const same = (a, b) => a === b || (typeof a === 'object' && a !== null && JSON.stringify(a) === JSON.stringify(b));
+const baseIndex = bases => new Map(Object.values(bases).flatMap(d => d?.players || []).map(p => [p.id, p]));
+export function packWorld(w, bases) {
+  const index = baseIndex(bases), leagues = {};
+  for (const [id, s] of Object.entries(w.leagues)) {
+    leagues[id] = !s.playerPool ? s : {...s, playerPool: s.playerPool.map(p => {
+      const b = index.get(p.id); if (!b) return p;
+      const q = {...p}; for (const k of STATIC_KEYS) if (k in q && same(q[k], b[k])) delete q[k];
+      return q;
+    })};
+  }
+  return JSON.stringify({...w, leagues});
+}
+function unpackPools(parsed, bases) {
+  const index = baseIndex(bases);
+  for (const s of Object.values(parsed.leagues || {})) for (const p of s?.playerPool || []) {
+    const b = index.get(p.id); if (!b) continue;
+    for (const k of STATIC_KEYS) if (!(k in p) && k in b) p[k] = structuredClone(b[k]);
+  }
 }
 
 export function digestAI(w, id, before, s, datas) {
@@ -182,6 +209,7 @@ export function restoreWorld(parsed, bases) {
   if (parsed?.kind !== 'world' || parsed.worldVersion !== WORLD_VERSION || !LEAGUE_ORDER.includes(parsed.userLeague)) throw new Error('存檔格式不符');
   // v2.0 added KBO: older saves get a KBO season that catches up with the user's league.
   for (const id of LEAGUE_ORDER) if (!parsed.leagues?.[id] && bases[id]) addLeague(parsed, bases, id);
+  unpackPools(parsed, bases);
   for (const id of LEAGUE_ORDER) {
     const s = parsed.leagues?.[id];
     if (!s || !Array.isArray(s.schedule) || !s.teams || !s.condition || !['regular', 'playoffs', 'finished'].includes(s.phase)) throw new Error('存檔格式不符');

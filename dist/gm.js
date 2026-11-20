@@ -1,8 +1,8 @@
 // DUGOUT front office: team strength profile, league ranks, trade impact and the chief assistant.
 // Everything here reads the season; only hiring an assistant changes it (through hireAssistant).
 import {rosterFor, autoLineup, assignFielding, hasBat, hasPitch, batValue, pitchValue, defenseAt, ovr, potential, playerAge,
-  salaryOf, salaryFor, g100, g100delta, contractYears, payroll, teamStrategy, untouchables, evaluateTrade, normOffer, tradeDeadline, idHash, moneyScale, teamOf, clamp, positionsOf, primaryPosition} from './engine.js?v=25';
-import {batLine, pitchLine, leagueBaselines, opsPlus, eraPlus} from './stats.js?v=25';
+  salaryOf, salaryFor, g100, g100delta, contractYears, payroll, teamStrategy, untouchables, evaluateTrade, normOffer, tradeDeadline, idHash, moneyScale, teamOf, clamp, positionsOf, primaryPosition} from './engine.js?v=26';
+import {batLine, pitchLine, leagueBaselines, opsPlus, eraPlus} from './stats.js?v=26';
 
 export const CATEGORIES = [
   {key: 'offense', label: '打擊火力', hint: '先發九人的整體打擊能力'},
