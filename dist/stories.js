@@ -80,7 +80,7 @@ export const STORIES=[
    opt('總教練親自訓話，嚴格要求',{morale:4,teamEnergy:-6}),
    opt('取消賽前訓練，全隊放鬆',{morale:2,teamEnergy:12})]})},
  {id:'win_streak',rarity:'common',weight:c=>c.streak>=4?3:0,
-  build:(c)=>({title:`${c.streak} 連勝！球迷熱情沸騰`,text:`球隊拉出 ${c.streak} 連勝，周邊商品賣到缺貨，球員也想好好慶祝。`,options:[
+  build:(c)=>({title:`${c.streak} 連勝，主場湧進人潮`,text:`球隊拉出 ${c.streak} 連勝，周邊商品賣到缺貨，球員也想好好慶祝。`,options:[
    opt('球團請客辦慶功宴',{morale:10,teamEnergy:-6,cost:50000}),
    opt('舉辦球迷感謝見面會',{income:150000,teamEnergy:-5,morale:4}),
    opt('低調處理，保持專注',{morale:2,teamEnergy:4})]})},
@@ -171,7 +171,7 @@ export const STORIES=[
    opt('改當板凳教練一天，帶年輕球員',{players:[pl(p.id,{energy:15})],morale:5})]})},
  {id:'leader_speech',rarity:'uncommon',weight:c=>withTrait(c,'leader').length&&c.games>=15?1.2:0,
   cast:c=>({p:c.pick(withTrait(c,'leader'))}),
-  build:(c,{p})=>({title:`${c.name(p.id)} 的賽前演說`,text:`${c.name(p.id)} 在賽前圍圈時說了一段話，連教練都聽得熱血沸騰。`,options:[
+  build:(c,{p})=>({title:`${c.name(p.id)} 的賽前演說`,text:`${c.name(p.id)} 在賽前圍圈時說了一段話，連教練都跟著點頭。`,options:[
    opt('把影片放上球團社群',{income:60000,morale:8}),opt('留在更衣室就好',{morale:10})]})},
 
  // ---------------------------------------------------------------- team operations
@@ -243,7 +243,7 @@ export const STORIES=[
   build:()=>({title:'老闆宣布：奪冠就發高額獎金',text:'老闆在記者會上宣布，只要拿下總冠軍，全隊都有一筆豐厚獎金。',options:[
    opt('全隊士氣大振',{morale:15,teamEnergy:-4}),opt('提醒大家專注眼前每一場',{morale:8,teamEnergy:4})]})},
  {id:'legend_returns',rarity:'legendary',weight:()=>1,
-  build:()=>({title:'球團名人堂傳奇回到球場',text:'一位退休多年的球團傳奇回到球場擔任一日顧問，更衣室裡滿是星星眼的年輕球員。',options:[
+  build:()=>({title:'球團名人堂傳奇回到球場',text:'一位退休多年的球團傳奇回到球場擔任一日顧問，年輕球員圍著他問個不停。',options:[
    opt('請他對全隊演講',{morale:14}),opt('請他指導年輕球員打擊',{morale:6,players:[]}),opt('辦一場傳奇簽名會',{income:250000,morale:6})]})},
  {id:'sold_out_outfield',rarity:'legendary',weight:c=>c.streak>=2?2:0.5,
   build:()=>({title:'球迷包下整個外野席',text:'球迷後援會自發包下整個外野，準備了巨幅加油布條與整場應援。',options:[
