@@ -13,7 +13,7 @@ for(const league of ['CPBL','NPB','KBO']){
  test(`${league}: official snapshots use unique IDs, Chinese names, legal lineups, balanced 81-game schedules`,()=>{
   assert.equal(data.teams.length,LEAGUES[league].teams);
   assert.equal(new Set(data.players.map(p=>p.id)).size,data.players.length);
-  for(const p of data.players){assert.ok(p.id.startsWith(league.toLowerCase()+':'));assert.ok(!/[a-zA-Zァ-ヿ]/.test(p.name),p.name);assert.ok(p.source_url);assert.ok(['npb_stats_2024_2026','estimate_no_npb_stats','cpbl_official_percentiles_2026','estimate_no_cpbl_data','kbo_stats_2024_2025','estimate_no_kbo_stats'].includes(p.ratings_source),p.ratings_source);}
+  for(const p of data.players){assert.ok(p.id.startsWith(league.toLowerCase()+':'));assert.ok(!/[a-zA-Zァ-ヿ]/.test(p.name),p.name);assert.ok(p.source_url);assert.ok(['npb_stats_2024_2026','estimate_no_npb_stats','cpbl_official_percentiles_2026','estimate_no_cpbl_data','kbo_stats_2024_2025','estimate_no_kbo_stats'].includes(p.ratings_source)||/^estimate_new_2026_(import|asia|veteran|rookie)$/.test(p.ratings_source),p.ratings_source);}
   const s=makeSeason(data,data.teams[0].id,19),homes={},pairs={};
   assert.equal(s.league,league);assert.equal(s.schedule.length,81);
   for(const day of s.schedule){assert.equal(new Set(day.flat()).size,data.teams.length);for(const[a,h]of day){assert.ok(a&&h&&a!==h);homes[h]=(homes[h]||0)+1;const key=[a,h].sort().join('|');pairs[key]=(pairs[key]||0)+1;}}

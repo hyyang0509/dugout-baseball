@@ -68,7 +68,8 @@ test('offseason: negotiated re-signings, controlled raises, offseason trades and
  assert.ok(s.offseasonTrades);
  const exp=o.offseason.userExpiring;assert.ok(exp.length>=2,'needs expiring players');
  assert.ok(exp.every(r=>r.ask>=r.floor&&r.salary===r.ask));
- const [low,fair]=exp;
+ // The re-signed player must not be old enough to retire at random during the rollover.
+ const low=exp[0],fair=exp.slice(1).sort((a,b)=>a.age-b.age)[0];
  O.setExpiringOffer(o,low.id,{salary:Math.max(10000,low.floor-500000)});
  O.setExpiringOffer(o,fair.id,{salary:fair.ask,years:2});
  for(const r of o.offseason.userControlled)assert.ok(r.salary>=salaryFor(s,d.players.find(p=>p.id===r.id)));

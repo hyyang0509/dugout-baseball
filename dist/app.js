@@ -1,11 +1,11 @@
-import {LEAGUES,loadLeague} from './leagues.js?v=21';
-import {WORLD_KEY,LEAGUE_ORDER,LEAGUE_NAME,LEAGUE_SHORT,HOME_LEAGUE,isForeign,toWorldScale,makeWorld,worldDatas,worldNextDay,restoreWorld,userSeason,worldTop,leagueStrength,isKnown,ratingView,ovrView,startScouting,scoutCost,scoutingDaysLeft,scouting,SCOUT_DAYS,SCOUT_SLOTS} from './world.js?v=21';
-import {startOffseason,completeOffseason,setExpiringDecision,setExpiringOffer,releaseInOffseason,setPostingDecision,setBid,leagueSalary,offerValue,FOREIGN_QUOTA,POSTING_FEE} from './offseason.js?v=21';
-import {portraitSVG,managerCapSVG} from './portrait.js?v=21';
-import {BAT_COLUMNS,PIT_COLUMNS,statRows,batLine,pitchLine,ip} from './stats.js?v=21';
-import {MANAGER_STYLES,managerOf,managerCandidates,managerFee,hireManager,setSelfManaged,gmOf,TITLES,titleInfo,boardStatus,jobOffers,takeJob,fansOf,sentimentLabel,ensureFront} from './front.js?v=21';
-import {CATEGORIES,teamReport,leagueProfiles,tradeImpact,assistantOf,assistantReport,assistantVerdict,assistantCandidates,assistantFee,assistantStars,hireAssistant,ASSISTANT_STYLES} from './gm.js?v=21';
-import {teamStrategy,STRATEGY_LABEL,STRATEGY_HINT,untouchables,tradeCounters,playerTraits,TRAIT_LABELS,TRAIT_HINTS,RARITY_LABEL,gateEstimate,saveVersionSupported,missingSavePlayers,makeSeason,nextDay,resolveEvent,standings,autoLineup,availableLineup,chooseStarter,hasBat,hasPitch,batValue,pitchValue,teamOf,rosterFor,positionsOf,migrateSeason,setLineup,setPosition,assignFielding,salaryOf,payroll,remainingSalary,evaluateTrade,executeTrade,setTicketPrice,seasonGames,tradeDeadline,salaryFractionRemaining,dailySalary,EVENT_RATE,eventChoiceStatus,advanceSeason,seasonData,playerAge,overall,positionLabel,ovr,potential,g100,g100delta,primaryPosition,normOffer,isImport,importCount,FOREIGN_LIMIT,releaseCheck,releasePlayer,clamp,salaryFor,contractYears,offerOutlook,OUTLOOK_LABEL,extensionCheck,extendContract,freeAgentPool,signCheck,signFreeAgent,freeAgentDeadline} from './engine.js?v=21';
+import {LEAGUES,loadLeague,loadLegacyRoster} from './leagues.js?v=22';
+import {WORLD_KEY,LEAGUE_ORDER,LEAGUE_NAME,LEAGUE_SHORT,HOME_LEAGUE,isForeign,toWorldScale,makeWorld,worldDatas,worldNextDay,restoreWorld,legacyRosterNeeds,attachLegacyPool,userSeason,worldTop,leagueStrength,isKnown,ratingView,ovrView,startScouting,scoutCost,scoutingDaysLeft,scouting,SCOUT_DAYS,SCOUT_SLOTS} from './world.js?v=22';
+import {startOffseason,completeOffseason,setExpiringDecision,setExpiringOffer,releaseInOffseason,setPostingDecision,setBid,leagueSalary,offerValue,FOREIGN_QUOTA,POSTING_FEE} from './offseason.js?v=22';
+import {portraitSVG,managerCapSVG} from './portrait.js?v=22';
+import {BAT_COLUMNS,PIT_COLUMNS,statRows,batLine,pitchLine,ip} from './stats.js?v=22';
+import {MANAGER_STYLES,managerOf,managerCandidates,managerFee,hireManager,setSelfManaged,gmOf,TITLES,titleInfo,boardStatus,jobOffers,takeJob,fansOf,sentimentLabel,ensureFront} from './front.js?v=22';
+import {CATEGORIES,teamReport,leagueProfiles,tradeImpact,assistantOf,assistantReport,assistantVerdict,assistantCandidates,assistantFee,assistantStars,hireAssistant,ASSISTANT_STYLES} from './gm.js?v=22';
+import {teamStrategy,STRATEGY_LABEL,STRATEGY_HINT,untouchables,tradeCounters,playerTraits,TRAIT_LABELS,TRAIT_HINTS,RARITY_LABEL,gateEstimate,saveVersionSupported,missingSavePlayers,makeSeason,nextDay,resolveEvent,standings,autoLineup,availableLineup,chooseStarter,hasBat,hasPitch,batValue,pitchValue,teamOf,rosterFor,positionsOf,migrateSeason,setLineup,setPosition,assignFielding,salaryOf,payroll,remainingSalary,evaluateTrade,executeTrade,setTicketPrice,seasonGames,tradeDeadline,salaryFractionRemaining,dailySalary,EVENT_RATE,eventChoiceStatus,advanceSeason,seasonData,playerAge,overall,positionLabel,ovr,potential,g100,g100delta,primaryPosition,normOffer,isImport,importCount,FOREIGN_LIMIT,releaseCheck,releasePlayer,clamp,salaryFor,contractYears,offerOutlook,OUTLOOK_LABEL,extensionCheck,extendContract,freeAgentPool,signCheck,signFreeAgent,freeAgentDeadline} from './engine.js?v=22';
 const $=s=>document.querySelector(s);let KEY=WORLD_KEY;let world=null,bases={},datas={},viewLeague=null;let baseData,data,state=null,page='dashboard',rosterTab='lineup',leaderTab='teams',statKind='bat',statSort={bat:'ops',pit:'era'},busy=false,modal=null,selectedTeam='mlb:119',filter='',starter=null,saveError=false;let newsFilter='all',newsDay='all';
 let activeLeague='MLB';
 const leagueName=()=>LEAGUE_NAME[activeLeague]||LEAGUES[activeLeague].name;
@@ -404,7 +404,10 @@ async function init(){
   let id='MLB';try{id=localStorage.getItem('dugout.league')||'MLB';}catch(e){}
   activeLeague=bases[id]?id:'MLB';baseData=bases[activeLeague];data=baseData;selectedTeam=data.teams[0].id;tradeDraft={targetTeam:data.teams[1].id,give:[],get:[],cash:0};
   let raw=null;try{raw=localStorage.getItem(KEY);}catch(e){saveError=true;}
-  if(raw){try{useWorld(restoreWorld(JSON.parse(raw),bases));selectedTeam=state.teamId;tradeDraft={targetTeam:data.teams.find(t=>t.id!==state.teamId).id,give:[],get:[],cash:0};save();}
+  if(raw){try{const parsed=JSON.parse(raw);
+   // A save begun on an older roster snapshot keeps that roster (refreshed files never break it).
+   for(const need of legacyRosterNeeds(parsed,bases)){const old=await loadLegacyRoster(need.id,need.dataVersion);if(old)attachLegacyPool(parsed,need.id,toWorldScale(need.id,old));}
+   useWorld(restoreWorld(parsed,bases));selectedTeam=state.teamId;tradeDraft={targetTeam:data.teams.find(t=>t.id!==state.teamId).id,give:[],get:[],cash:0};save();}
    catch(e){world=null;state=null;data=baseData;toast('世界存檔無法讀取。原存檔已保留，開新球季後才會取代。');}}
   else{let legacy=false;try{legacy=['dugout.save.v1','dugout.save.npb.v1','dugout.save.cpbl.v1'].some(k=>localStorage.getItem(k));}catch(e){}
    if(legacy)toast('遊戲已改為世界模式：三個聯盟一起進行。舊的單一聯盟存檔不再使用，請重新選隊開始。');}

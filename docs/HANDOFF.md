@@ -59,7 +59,8 @@
 
 ## v2.0 韓職與 1–100 顯示
 
-- dist/data/roster_kbo.json 由 data_pipeline/build_kbo.py 產生（讀取 KBOFM2025 開源專案的 data/source CSV；KBO 官網在建置環境連不到）。姓名轉寫在 data_pipeline/kbo_names_zh.py。
+- dist/data/roster_kbo.json：v2.1 起由 data_pipeline/update_kbo_wiki.py 產生（韓文維基百科各隊名單模板＋新球員條目的 infobox；以 roster_kbo_20251031.json 為能力來源）。2025 版由 build_kbo.py 從 KBOFM2025 CSV 產生，保留為 roster_kbo_20251031.json。KBO 官網 robots.txt 禁止未經核准的自動收集，不可抓取。姓名轉寫在 data_pipeline/kbo_names_zh.py。
+- 名單快照更新與舊存檔：leagues.js 的 LEGACY_ROSTERS 以 generated_at 對應舊快照檔；app 讀檔時 world.legacyRosterNeeds 找出還沒有 playerPool、dataVersion 不同的聯盟，attachLegacyPool 把舊名單（toWorldScale 後）寫進 playerPool，再 restoreWorld。之後更新任何聯盟名單，都要把舊檔保留並登記在 LEGACY_ROSTERS。
 - LEAGUE_ORDER 加入 KBO；origin 'KOR'；FOREIGN_LIMIT/FOREIGN_QUOTA KBO 4；LEAGUE_PAY .15；LEAGUE_SCALE 縮小差距（NPB -6、KBO -9、CPBL -12）。restoreWorld 對缺少的聯盟呼叫 addLeague，模擬到使用者聯盟同一天。
 - g100(v) 只用於顯示：70 + (v − 50) × 1.6，限制在 1–100；g100delta 用於戰力差。引擎與存檔數值仍是 20–80。
 - offseason.market.crossTotal 記錄跨聯盟移動總數。

@@ -112,3 +112,10 @@ python data_pipeline/enrich_asia_ratings.py --leagues cpbl --refresh
 - 只讀公開頁面：`npb.jp/bis/players/<id>.html`、`stats.cpbl.com.tw/players/<acnt>` 與 `/rankings`。**不呼叫 `/api/`**（中職 robots.txt 禁止）。
 - 頁面快取在 `.cache/asia`（已 gitignore），重跑不會重複抓取；`--refresh` 才重新下載。
 - 換算：日職以 2024–2026 一軍成績（5/4/3 加權）計算比率並在聯盟內標準化；中職使用官方百分位（一軍為主、二軍 −7 分）。依樣本數向平均回歸後，線性校準到 MLB 尺度。無資料者為 42±3 的估計值，`ratings_source` 標示 `estimate_*`。
+
+## 韓職（KBO）
+
+- `build_kbo.py`：2025 版名單與能力（讀取開源專案 KBOFM2025 的 CSV），輸出現已保留為 `dist/data/roster_kbo_20251031.json`。
+- `update_kbo_wiki.py`：2026 季後名單。讀取韓文維基百科「틀:<球隊> 명단」模板與新球員條目（MediaWiki API，約每 3 秒一次請求，快取在 `.cache/wiki`），沿用 2025 版的能力，新球員能力為估計值，產生 `dist/data/roster_kbo.json`。執行：`python data_pipeline/update_kbo_wiki.py`。
+- KBO 官網（koreabaseball.com）的 robots.txt 禁止未經事先核准的自動收集、爬取與複製，不要寫程式抓官網。
+- 更新名單後，舊快照要保留並登記在 `dist/leagues.js` 的 `LEGACY_ROSTERS`，舊存檔才讀得到。
