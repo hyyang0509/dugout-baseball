@@ -1,7 +1,7 @@
 // World offseason: expiring contracts, a cross-league free-agent market, foreign-player
 // quotas, then the usual aging/retirement/rookie rollover for every league.
-import {advanceSeason, contractAsk, releasePlayer, salaryFor, overall, hasBat, hasPitch, teamOf, random, addNews, salaryOf, marketSalary, LEAGUE_PAY, teamStrategy, playerAge, positionsOf, worldRating} from './engine.js?v=24';
-import {LEAGUE_ORDER, LEAGUE_NAME, HOME_LEAGUE, isForeign, userSeason, worldDatas, finishWorld, ensureContracts, trimAI} from './world.js?v=24';
+import {advanceSeason, contractAsk, releasePlayer, salaryFor, overall, hasBat, hasPitch, teamOf, random, addNews, salaryOf, marketSalary, LEAGUE_PAY, teamStrategy, playerAge, positionsOf, worldRating} from './engine.js?v=25';
+import {LEAGUE_ORDER, LEAGUE_NAME, HOME_LEAGUE, isForeign, userSeason, worldDatas, finishWorld, ensureContracts, trimAI} from './world.js?v=25';
 
 // How attractive a league is to a free agent, on top of the money.
 // v2.0: gaps narrowed so more players cross leagues.
