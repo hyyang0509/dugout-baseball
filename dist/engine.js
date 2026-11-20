@@ -1,5 +1,5 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=25';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=26';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
 export const VERSION=5;
 export const SEASON_GAMES=81;
@@ -199,6 +199,10 @@ export function chooseStarter(s,data,teamId,preferred=null){
  const roster=rosterFor(s,data,teamId).filter(p=>hasPitch(p)&&!s.condition[p.id].injury);
  const rotation=s.teams[teamId].rotation;
  if(preferred&&roster.some(p=>p.id===preferred))return preferred;
+ // A real rotation: whoever started longest ago goes next, if rested enough. Without this
+ // the four best starters recovered to full first and the fifth starter never pitched.
+ const ready=roster.filter(p=>rotation.includes(p.id)&&s.condition[p.id].energy>=70);
+ if(ready.length)return ready.sort((a,b)=>(s.condition[a.id].lastStart??-99)-(s.condition[b.id].lastStart??-99)||rotation.indexOf(a.id)-rotation.indexOf(b.id))[0].id;
  return [...roster].sort((a,b)=>{
   const score=p=>s.condition[p.id].energy+pitchValue(p)*.3+(rotation.includes(p.id)?25:0);
   return score(b)-score(a);
@@ -214,6 +218,7 @@ export function simulateGame(s,data,awayId,homeId,options={}){
  const teamIds=[awayId,homeId],score=[0,0],innings=[[],[]],index=[0,0],hits=[0,0],errors=[0,0];
  const arms=teamIds.map(id=>chooseStarter(s,data,id,id===s.teamId?options.starter:null));
  if(arms.some(p=>!p))throw new Error('無健康投手可出賽。');
+ for(const id of arms)s.condition[id].lastStart=s.day;
  const usedArms=[new Set(),new Set()],boxB={},boxP={},moments=[];
  const startEnergy={};const pitchedPA={};
  const bstat=id=>boxB[id]??=({id,team_id:teamOf(s,byId[id]),ab:0,h:0,r:0,rbi:0,hr:0,bb:0,k:0});
@@ -902,12 +907,22 @@ export function makeStory(s,data,id,cast){const tpl=STORY_BY_ID[id];return tpl?b
 export const playerAge=(s,p)=>(s.year||2026)-Number(p.birth_date?.slice(0,4)||1998);
 export function seasonData(base,s){return s?.playerPool?{...base,players:s.playerPool}:base;}
 export const overall=p=>Math.max(hasBat(p)?batValue(p):0,hasPitch(p)?pitchValue(p):0);
-function rookie(s,template,teamId,year,serial){
- const pick=xs=>xs[Math.floor(random(s)*xs.length)];const league=template.league;
- let name;
- if(league==='NPB')name=pick(['佐藤','鈴木','高橋','田中','伊藤','渡邊','山本','中村','小林','加藤','吉田','山田','佐佐木','山口','松本','井上','木村','清水'])+pick(['翔太','大輝','拓海','健太','蓮','悠真','陽斗','湊','颯太','優斗','大和','隼人','航','健斗','涼介','直樹']);
- else if(league==='MLB')name=pick(['Jake','Tyler','Mason','Ethan','Logan','Ryan','Caleb','Owen','Luis','Carlos','Diego','José','Brandon','Austin','Cole','Hunter'])+' '+pick(['Miller','Johnson','Davis','Garcia','Rodriguez','Martinez','Wilson','Anderson','Thomas','Moore','Hernandez','Lopez','Clark','Lewis','Walker','Young']);
- else name=pick(['林','陳','吳','張','黃','李','王','劉','楊','周','許','郭','蔡','鄭','謝','江'])+pick(['宇','柏','承','子','昱','宥','俊','奕','澤','冠','哲','以','景','恩','睿','曜'])+pick(['安','翔','恩','辰','廷','豪','宇','軒','凱','宏','霖','佑','睿','衡','翰','傑']);
+// Generated names follow the league's country and never reuse a real player's name.
+const ROOKIE_NAMES={
+ NPB:[['佐藤','鈴木','高橋','田中','伊藤','渡邊','山本','中村','小林','加藤','吉田','山田','佐佐木','山口','松本','井上','木村','清水'],['翔太','大輝','拓海','健太','蓮','悠真','陽斗','湊','颯太','優斗','大和','隼人','航','健斗','涼介','直樹']],
+ KBO:[['金','李','朴','崔','鄭','姜','趙','尹','張','林','韓','吳','申','徐','權','黃'],['民','瑞','道','時','柱','夏','智','俊','建','賢','承','在','東','炫','泰','允'],['俊','宇','浩','赫','碩','元','秀','勳','振','鎬','奎','煥','植','永','珉','皙']],
+ CPBL:[['林','陳','吳','張','黃','李','王','劉','楊','周','許','郭','蔡','鄭','謝','江'],['宇','柏','承','子','昱','宥','俊','奕','澤','冠','哲','以','景','恩','睿','曜'],['安','翔','恩','辰','廷','豪','宇','軒','凱','宏','霖','佑','睿','衡','翰','傑']],
+ MLB:[['Jake','Tyler','Mason','Ethan','Logan','Ryan','Caleb','Owen','Luis','Carlos','Diego','José','Brandon','Austin','Cole','Hunter','Wyatt','Brody','Declan','Rafael'],['Miller','Johnson','Davis','Garcia','Rodriguez','Martinez','Wilson','Anderson','Thomas','Moore','Hernandez','Lopez','Clark','Lewis','Walker','Young','Hollis','Pruitt','Valdez','Kessler']],
+};
+function rookieName(s,league,taken){
+ const parts=ROOKIE_NAMES[league]||ROOKIE_NAMES.CPBL,pick=xs=>xs[Math.floor(random(s)*xs.length)];
+ let name='';
+ for(let i=0;i<12;i++){name=parts.map(pick).join(league==='MLB'?' ':'');if(!taken?.has(name))break;}
+ taken?.add(name);
+ return name;
+}
+function rookie(s,template,teamId,year,serial,taken){
+ const league=template.league,name=rookieName(s,league,taken);
  const age=18+Math.floor(random(s)*5),ratings={};
  // Rookie ratings are drawn on the league's own scale, then put on the world scale.
  for(const key of Object.keys(template.ratings)){const v=clamp(36+Math.floor(random(s)*17),20,80);ratings[key]=league?worldRating(league,key,v):v;}
@@ -919,6 +934,7 @@ export function advanceSeason(previous,base){
  // Work on a clone: failures must leave the completed season intact.
  const old=structuredClone(previous),data=seasonData(base,old),year=(old.year||2026)+1;
  const changes=[],retirees=[],newcomers=[],players=[];let serial=0;
+ const taken=new Set([...base.players,...data.players].map(p=>p.name.replace(/（.*）$/,'')));
  const clubName=id=>base.teams.find(t=>t.id===id).zh;
  for(const original of data.players){
   const p=structuredClone(original),teamId=teamOf(old,p),age=year-Number(p.birth_date?.slice(0,4)||1998);p.team_id=teamId;
@@ -926,7 +942,7 @@ export function advanceSeason(previous,base){
   if(hasBat(p)&&!DEF_SPOTS.includes(p.position)&&p.position!=='DH'){p.position=primaryPosition(original);p.positions=[...positionsOf(original)];}
   const retireChance=age>=45?1:age>=37?Math.min(.85,.10+(age-37)*.09):0;
   if(retireChance&&random(old)<retireChance){
-   retirees.push({id:p.id,name:p.name,teamId,age});const next=rookie(old,p,teamId,year,++serial);players.push(next);newcomers.push({id:next.id,name:next.name,teamId,age:year-Number(next.birth_date.slice(0,4)),position:positionsOf(next).join('/')});continue;
+   retirees.push({id:p.id,name:p.name,teamId,age});const next=rookie(old,p,teamId,year,++serial,taken);players.push(next);newcomers.push({id:next.id,name:next.name,teamId,age:year-Number(next.birth_date.slice(0,4)),position:positionsOf(next).join('/')});continue;
   }
   const before=overall(p),deltas={};p.developmentPotential??=clamp(Math.round(before)+4+Math.floor(random(old)*9),45,80);
   for(const [key,value] of Object.entries(p.ratings)){
@@ -943,7 +959,7 @@ export function advanceSeason(previous,base){
   for(let i=0;i<2&&pool.length<42;i++){
    const candidates=source.filter(i===0?hasBat:hasPitch),template=candidates[Math.floor(random(old)*candidates.length)];
    if(!template)throw new Error(`${t.zh} 缺少新人守位範本。`);
-   const next=rookie(old,template,t.id,year,++serial);pool.push(next);players.push(next);newcomers.push({id:next.id,name:next.name,teamId:t.id,age:year-Number(next.birth_date.slice(0,4)),position:positionsOf(next).join('/')});
+   const next=rookie(old,template,t.id,year,++serial,taken);pool.push(next);players.push(next);newcomers.push({id:next.id,name:next.name,teamId:t.id,age:year-Number(next.birth_date.slice(0,4)),position:positionsOf(next).join('/')});
   }
  }
  const nextData={...base,players},next=makeSeason(nextData,old.teamId,old.rng);
