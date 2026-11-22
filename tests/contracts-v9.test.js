@@ -97,3 +97,20 @@ test('offseason: negotiated re-signings, controlled raises, offseason trades and
  assert.ok(!ns.offseasonTrades);
  for(const p of rosterFor(ns,nd,ns.teamId))assert.ok(ns.salaries[p.id]>0);
 });
+
+test('offseason: a club-controlled (auto-renewing) player can be let go for free',()=>{
+ const w=world(15);step(w,400);
+ const o=O.startOffseason(w,bases),s=W.userSeason(o),d=cpbl(o);
+ const ctrl=o.offseason.userControlled;assert.ok(ctrl.length,'needs a controlled player');
+ const r=ctrl.sort((a,b)=>a.ovr-b.ovr)[0];
+ // The plain check still points other expiring players to the expiring list; this one has no such list.
+ assert.ok(releaseCheck(s,d,r.id).reasons.some(x=>/到期合約/.test(x)));
+ const check=O.offseasonReleaseCheck(o,bases,r.id);assert.ok(check.ok,check.reasons.join());
+ assert.equal(check.owed,0);
+ const cash=s.finance[s.teamId].cash;O.releaseInOffseason(o,bases,r.id);
+ assert.equal(s.finance[s.teamId].cash,cash);
+ assert.ok(!o.offseason.userControlled.some(x=>x.id===r.id));assert.ok(!o.offseason.resigned.CPBL.includes(r.id));
+ assert.ok(o.offseason.freeAgents.some(x=>x.id===r.id));
+ const n=O.completeOffseason(o,bases),ns=W.userSeason(n),p=cpbl(n).players.find(x=>x.id===r.id);
+ assert.ok(!p||teamOf(ns,p)!==ns.teamId,'he left the club');
+});
