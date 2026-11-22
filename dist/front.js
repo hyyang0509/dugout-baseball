@@ -1,8 +1,8 @@
 // DUGOUT GM layer: the field manager, board goals and job security, GM reputation titles, and fan / pundit buzz.
 // It hooks into the engine (HOOKS) so a season keeps running even if this module is not loaded (tests, AI leagues).
 import {HOOKS, rosterFor, hasBat, hasPitch, ovr, potential, playerAge, payroll, teamStrategy, standings, seasonGames, idHash,
-  moneyScale, clamp, addNews, homeAttendance, normOffer, tradeDeadline, salaryOf, optimizeLineup} from './engine.js?v=31';
-import {teamReport, tradeImpact} from './gm.js?v=31';
+  moneyScale, clamp, addNews, homeAttendance, normOffer, tradeDeadline, salaryOf, optimizeLineup} from './engine.js?v=32';
+import {teamReport, tradeImpact} from './gm.js?v=32';
 
 const club = (data, id) => data.teams.find(t => t.id === id);
 const seasonYear = s => s.year || 2026;

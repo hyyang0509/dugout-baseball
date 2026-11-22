@@ -1,8 +1,8 @@
 // DUGOUT front office: team strength profile, league ranks, trade impact and the chief assistant.
 // Everything here reads the season; only hiring an assistant changes it (through hireAssistant).
 import {rosterFor, autoLineup, assignFielding, hasBat, hasPitch, batValue, pitchValue, defenseAt, ovr, potential, playerAge,
-  salaryOf, salaryFor, g100, g100delta, contractYears, payroll, teamStrategy, untouchables, evaluateTrade, normOffer, tradeDeadline, idHash, moneyScale, teamOf, clamp, positionsOf, primaryPosition} from './engine.js?v=31';
-import {batLine, pitchLine, leagueBaselines, opsPlus, eraPlus} from './stats.js?v=31';
+  salaryOf, salaryFor, g100, g100delta, contractYears, payroll, teamStrategy, untouchables, evaluateTrade, normOffer, tradeDeadline, idHash, moneyScale, teamOf, clamp, positionsOf, primaryPosition, OVR_DEF_WEIGHT} from './engine.js?v=32';
+import {batLine, pitchLine, leagueBaselines, opsPlus, eraPlus} from './stats.js?v=32';
 
 export const CATEGORIES = [
   {key: 'offense', label: '打擊火力', hint: '先發九人的整體打擊能力'},
@@ -73,6 +73,41 @@ export function teamReport(s, data, teamId) {
   const raRank = 1 + perGame('ra').filter(x => x.v < (t.ra || 0) / Math.max(1, games)).length;
   return {teamId, n, cats, strength: me.values.strength, strengthRank: me.ranks.strength, strengths: sorted.slice(0, 2), weaknesses: sorted.slice(-2).reverse(),
     emergency: me.emergency, games, rsRank: games >= 5 ? rsRank : null, raRank: games >= 5 ? raRank : null};
+}
+
+/** Depth-chart spots shown in the best lineup, fielders in diagram order, then pitchers. */
+export const DEPTH_SPOTS = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH', 'SP1', 'SP2', 'SP3', 'SP4', 'SP5', 'RP'];
+const SPOT_LABEL = {SP1: '先發一號', SP2: '先發二號', SP3: '先發三號', SP4: '先發四號', SP5: '先發五號', RP: '頭號後援'};
+/** Value of a hitter at a spot: hitting plus fielding there, weighted like the overall rating. */
+export function spotValue(p, pos) {
+  if (pos === 'DH') return batValue(p) - 2;
+  const w = OVR_DEF_WEIGHT[pos] ?? .15;
+  return batValue(p) * (1 - w) + (defenseAt(p, pos) ?? 45) * w;
+}
+function depthChart(s, data, row) {
+  const roster = rosterFor(s, data, row.teamId).filter(p => !s.condition[p.id]?.injury), byId = Object.fromEntries(roster.map(p => [p.id, p]));
+  const spots = {};
+  for (const id of row.lineup) { const pos = row.fielding[id]; if (pos && byId[id]) spots[pos] = {id, value: spotValue(byId[id], pos)}; }
+  const arms = roster.filter(p => hasPitch(p) && (!hasBat(p) || p.role));
+  arms.filter(p => p.role === 'SP').sort((a, b) => ovr(b) - ovr(a)).slice(0, 5).forEach((p, i) => { spots[`SP${i + 1}`] = {id: p.id, value: ovr(p)}; });
+  const rp = arms.filter(p => p.role !== 'SP').sort((a, b) => pitchValue(b) - pitchValue(a))[0];
+  if (rp) spots.RP = {id: rp.id, value: pitchValue(rp)};
+  return spots;
+}
+/**
+ * Best lineup by ratings (healthy players, fatigue ignored) with each spot's league rank against
+ * the other clubs' best at the same spot. tone: 'weak' in the bottom third (a place to upgrade), 'strong' in the top third.
+ */
+export function bestLineup(s, data, teamId) {
+  return cached(s, `best|${teamId}`, () => {
+    const rows = leagueProfiles(s, data), charts = Object.fromEntries(rows.map(r => [r.teamId, depthChart(s, data, r)])), n = rows.length;
+    const mine = charts[teamId], third = Math.ceil(n / 3);
+    const spots = DEPTH_SPOTS.filter(k => mine[k]).map(key => {
+      const value = mine[key].value, rank = 1 + rows.filter(r => r.teamId !== teamId && (charts[r.teamId][key]?.value ?? -1) > value).length;
+      return {key, label: SPOT_LABEL[key] || key, id: mine[key].id, value, rank, n, tone: rank <= third ? 'strong' : rank > n - third ? 'weak' : ''};
+    });
+    return {n, spots, upgrades: spots.filter(x => x.tone === 'weak').sort((a, b) => b.rank - a.rank || a.value - b.value)};
+  });
 }
 
 /** What a trade does to one club: category values and ranks before and after. */

@@ -1,5 +1,5 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=31';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=32';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
 export const VERSION=5;
 export const SEASON_GAMES=81;
@@ -90,7 +90,7 @@ export function defenseAt(p,pos){
  const d=p.ratings.defense||45;if(pos==='DH')return null;const v=positionProfile(p);
  if(pos===v.primary)return d;if(v.secondary.includes(pos))return d-Math.ceil((MOVE_COST[pos]||2)/2);return d-10-(MOVE_COST[pos]||2);
 }
-const OVR_DEF_WEIGHT={C:.3,SS:.3,CF:.28,'2B':.25,'3B':.22,LF:.15,RF:.17,'1B':.12};
+export const OVR_DEF_WEIGHT={C:.3,SS:.3,CF:.28,'2B':.25,'3B':.22,LF:.15,RF:.17,'1B':.12};
 /** Overall rating shown to players: hitting plus fielding at the primary spot, or pitching. */
 export function ovr(p){
  const bat=hasBat(p)?(()=>{const pos=primaryPosition(p);if(pos==='DH')return batValue(p)-2;const w=OVR_DEF_WEIGHT[pos]??.15;return batValue(p)*(1-w)+(p.ratings.defense||45)*w;})():0;
@@ -646,11 +646,12 @@ export function signFreeAgent(s,data,id){
  return p;
 }
 // ---- Releasing a player: the club pays the rest of this season's salary now; he becomes a free agent.
-export function releaseCheck(s,data,id){
+/** opts.controlled: an offseason auto-renewal (club-controlled player) can be let go before his new deal starts. */
+export function releaseCheck(s,data,id,opts={}){
  const p=data.players.find(x=>x.id===id),reasons=[];
  if(!p||teamOf(s,p)!==s.teamId)return {ok:false,reasons:['這名球員不在你的名單上。']};
  if(s.phase==='finished'&&!s.offseasonTrades)reasons.push('球季已結束，請進入休賽季再處理。');
- if(s.phase==='finished'&&contractYears(s,p)<=1)reasons.push('他的合約今年到期，請在休賽季的「到期合約」選擇放走。');
+ if(s.phase==='finished'&&contractYears(s,p)<=1&&!opts.controlled)reasons.push('他的合約今年到期，請在休賽季的「到期合約」選擇放走。');
  const roster=rosterFor(s,data,s.teamId).filter(x=>x.id!==id),healthy=roster.filter(x=>!s.condition[x.id].injury);
  if(roster.length<26)reasons.push('名單至少要保留 26 人。');
  if(!assignFielding(healthy.filter(hasBat).map(x=>x.id),data)||healthy.filter(hasPitch).length<9)reasons.push('釋出後無法組成完整陣容（九個守位、至少 9 名投手）。');
@@ -659,8 +660,8 @@ export function releaseCheck(s,data,id){
  if(s.finance[s.teamId].cash<owed)reasons.push('現金不足以付清剩餘薪資。');
  return {ok:!reasons.length,reasons,owed,player:p};
 }
-export function releasePlayer(s,data,id){
- const r=releaseCheck(s,data,id);if(!r.ok)throw new Error(r.reasons.join('\n'));
+export function releasePlayer(s,data,id,opts={}){
+ const r=releaseCheck(s,data,id,opts);if(!r.ok)throw new Error(r.reasons.join('\n'));
  const f=s.finance[s.teamId],p=r.player;
  f.cash-=r.owed;f.salaryCost+=r.owed;f.ledger.unshift({day:s.day,type:'release',label:`釋出 ${p.name}（付清剩餘合約）`,income:0,salary:r.owed,cost:0,attendance:0,net:-r.owed});f.ledger=f.ledger.slice(0,90);
  s.ownership[id]='FA';(s.released??=[]).unshift({day:s.day,id,name:p.name,owed:r.owed});

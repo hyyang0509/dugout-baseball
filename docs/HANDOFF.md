@@ -96,3 +96,9 @@
 - CSS 背景規則用 `:root .photo-bg.photo-x` 提高優先順序，才能蓋過主題的 `html[data-theme=dark] .season-hero{background:…}`。
 - 事件視窗不再有插圖；art.js 只剩 defenseDiagram／shortName。stories.js 模板的 scene 欄位已無作用，保留以免動到 139 個模板。
 - tests/art.test.js 檢查照片存在、小於 200KB、有被使用，且每個照片位置都有 AI 生成標示。
+
+## v3.1 最佳陣容與自動續約釋出
+
+- gm.js：bestLineup(s,data,teamId) 以 leagueProfiles 的最佳九人與守位，加上前五名先發（依 ovr）與頭號後援（依 pitchValue），回傳 DEPTH_SPOTS 每格的 value（打者用 spotValue：打擊＋該守位守備，權重同 ovr 的 OVR_DEF_WEIGHT）、聯盟同格排名、tone（前三分之一 strong、後三分之一 weak）與 upgrades。沿用 cached 的快取鍵。
+- art.js defenseDiagram 的 entries 可帶 tag（第二行文字）與 tone（weak 紅框、strong 粗金框）；不帶時外觀不變。
+- 休賽季釋出：offseason.js 的 offseasonReleaseCheck／releaseInOffseason 對 o.userControlled 的球員傳 {controlled:true} 給 releaseCheck，略過「合約今年到期」的限制，並把他從 userControlled 與 resigned 移除，避免 completeOffseason 又替他續約。app 的釋出視窗在休賽季改用 offseasonReleaseCheck。

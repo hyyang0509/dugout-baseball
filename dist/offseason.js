@@ -1,7 +1,7 @@
 // World offseason: expiring contracts, a cross-league free-agent market, foreign-player
 // quotas, then the usual aging/retirement/rookie rollover for every league.
-import {advanceSeason, contractAsk, releasePlayer, salaryFor, overall, hasBat, hasPitch, teamOf, random, addNews, salaryOf, marketSalary, LEAGUE_PAY, teamStrategy, playerAge, positionsOf, worldRating} from './engine.js?v=31';
-import {LEAGUE_ORDER, LEAGUE_NAME, HOME_LEAGUE, isForeign, userSeason, worldDatas, finishWorld, ensureContracts, trimAI} from './world.js?v=31';
+import {advanceSeason, contractAsk, releaseCheck, releasePlayer, salaryFor, overall, hasBat, hasPitch, teamOf, random, addNews, salaryOf, marketSalary, LEAGUE_PAY, teamStrategy, playerAge, positionsOf, worldRating} from './engine.js?v=32';
+import {LEAGUE_ORDER, LEAGUE_NAME, HOME_LEAGUE, isForeign, userSeason, worldDatas, finishWorld, ensureContracts, trimAI} from './world.js?v=32';
 
 // How attractive a league is to a free agent, on top of the money.
 // v2.0: gaps narrowed so more players cross leagues.
@@ -174,11 +174,18 @@ export function controlledSalary(s, p, league) {
   return Math.max(now, Math.round(market * .8 / 10000) * 10000);
 }
 /** Releases a player who is still under contract during the offseason: the rest of the deal is paid now. */
+const isControlled = (o, id) => !!o?.userControlled?.some(r => r.id === id);
+/** Release check that knows the offseason: club-controlled players can be let go before their auto-renewal. */
+export function offseasonReleaseCheck(w, bases, id) {
+  return releaseCheck(userSeason(w), worldDatas(w, bases)[w.userLeague], id, {controlled: isControlled(w.offseason, id)});
+}
 export function releaseInOffseason(w, bases, id) {
   const o = w.offseason; if (!o) throw new Error('目前不在休賽季。');
   const s = userSeason(w), data = worldDatas(w, bases)[w.userLeague];
-  const r = releasePlayer(s, data, id), p = r.player;
+  const controlled = isControlled(o, id), r = releasePlayer(s, data, id, {controlled}), p = r.player;
   o.bids && delete o.bids[id];
+  // An auto-renewal that is let go no longer gets his new contract.
+  if (controlled) { o.userControlled = o.userControlled.filter(x => x.id !== id); o.resigned[w.userLeague] = (o.resigned[w.userLeague] || []).filter(x => x !== id); }
   const age = o.year - Number(p.birth_date?.slice(0, 4) || 1998);
   o.freeAgents.push({id: p.id, name: p.name, league: w.userLeague, teamId: 'FA', ovr: Math.round(overall(p)), age, position: p.position, origin: p.origin || 'INTL', pitcher: isPitcherOnly(p), value: marketSalary(p)});
   o.freeAgents.sort((a, b) => b.ovr - a.ovr || a.name.localeCompare(b.name));
