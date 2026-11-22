@@ -1,6 +1,7 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=32';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=33';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
+import {formatFor,startPlayoffs,advancePlayoffs,seriesDone,seriesGame,migratePlayoffs,playoffPicture} from './postseason.js?v=33';
 export const VERSION=5;
 export const SEASON_GAMES=81;
 // v2.7: more stories, shown less often (was .40).
@@ -342,6 +343,20 @@ function recordDecisions(s,apps,goAhead,score,winSide,boxP){
  return {win,lose,save,holds,blown};
 }
 export function standings(s){return Object.entries(s.teams).sort((a,b)=>(b[1].w/(b[1].w+b[1].l||1))-(a[1].w/(a[1].w+a[1].l||1))||((b[1].rs-b[1].ra)-(a[1].rs-a[1].ra))||a[0].localeCompare(b[0]));}
+// ---- Postseason (see postseason.js). CPBL also keeps first- and second-half standings.
+export const postseasonFormat=s=>formatFor(s.league||'MLB',Object.keys(s.teams));
+export const halfBoundary=s=>Math.ceil(seasonGames(s)/2);
+const usesHalves=s=>postseasonFormat(s)==='cpbl';
+function recordHalves(s,games){
+ if(!s.halves||!games.length)return;const half=games[0].day<halfBoundary(s)?'first':'second',rows=s.halves[half];
+ for(const g of games){for(const [side,id] of [[0,g.away],[1,g.home]]){const r=rows[id]??={w:0,l:0,rs:0,ra:0};r.rs+=g.score[side];r.ra+=g.score[1-side];if(g.winner===id)r.w++;else r.l++;}}
+}
+/** A half season's standings (best first), same tie-breaks as the full table. */
+export function halfStandings(s,half){const rows=s.halves?.[half]||{};return Object.keys(s.teams).map(id=>[id,rows[id]||{w:0,l:0,rs:0,ra:0}]).sort((a,b)=>(b[1].w/(b[1].w+b[1].l||1))-(a[1].w/(a[1].w+a[1].l||1))||((b[1].rs-b[1].ra)-(a[1].rs-a[1].ra))||a[0].localeCompare(b[0]));}
+const halvesOrder=s=>usesHalves(s)&&s.halves?{first:halfStandings(s,'first').map(([id])=>id),second:s.day>halfBoundary(s)||s.phase!=='regular'?halfStandings(s,'second').map(([id])=>id):null}:null;
+/** Who is in if the postseason started today: {seeds, notes, groups}. Second half champion is unknown before the half starts. */
+export function currentPicture(s){if(s.playoffs)return {seeds:s.playoffs.seeds,notes:s.playoffs.notes||{},groups:s.playoffs.groups};const h=halvesOrder(s);return playoffPicture(postseasonFormat(s),standings(s).map(([id])=>id),h&&{first:h.first,second:h.second||h.first});}
+export {seriesGame,seriesDone};
 function recover(s,data){for(const p of data.players){const c=s.condition[p.id];c.energy=clamp(c.energy+(hasPitch(p)?18:c.lastPlayed===s.day-1?5:16),0,100);if(c.injury)c.injury--;if(c.formDays>0){c.formDays--;if(!c.formDays)c.form=0;}}}
 export function findTradeProposal(s,data,fromTeam,opponent){
  if(s.phase!=='regular'||s.day>=tradeDeadline(s))return null;
@@ -415,13 +430,15 @@ export function nextDay(s,data,options={}){
  const results=[];
  if(s.phase==='regular'){
   for(const [away,home] of s.schedule[s.day])results.push(simulateGame(s,data,away,home,options));
+  recordHalves(s,results);
   s.day++;
-  if(s.day>=s.schedule.length){const top=standings(s).slice(0,4).map(([id])=>id);s.playoffs={round:'semifinal',seeds:top,series:[{teams:[top[0],top[3]],wins:[0,0]},{teams:[top[1],top[2]],wins:[0,0]}],game:0};s.phase='playoffs';}
+  if(s.day>=s.schedule.length){s.playoffs=startPlayoffs(postseasonFormat(s),standings(s).map(([id])=>id),halvesOrder(s));s.phase='playoffs';}
  }else{
-  const po=s.playoffs;const needed=po.round==='final'?3:2;
-  for(const series of po.series){if(series.wins.some(w=>w>=needed))continue;const [high,low]=series.teams;const swap=po.game%3===2;const game=simulateGame(s,data,swap?high:low,swap?low:high,{...options,postseason:true});series.wins[series.teams.indexOf(game.winner)]++;results.push(game);}
+  const po=s.playoffs;
+  for(const series of po.series){if(seriesDone(series))continue;const {away,home}=seriesGame(series);const game=simulateGame(s,data,away,home,{...options,postseason:true});game.series=series.label;series.wins[series.teams.indexOf(game.winner)]++;series.played++;results.push(game);}
   po.game++;s.day++;
-  if(po.series.every(series=>series.wins.some(w=>w>=needed))){const winners=po.series.map(series=>series.teams[series.wins.indexOf(needed)]);if(po.round==='final'){s.champion=winners[0];s.phase='finished';}else{s.playoffs={round:'final',seeds:po.seeds,series:[{teams:winners.sort((a,b)=>po.seeds.indexOf(a)-po.seeds.indexOf(b)),wins:[0,0]}],game:0};}}
+  advancePlayoffs(po);
+  if(po.champion){s.champion=po.champion;s.phase='finished';}
  }
  settleDay(s,data,results);
  const own=results.find(g=>g.away===s.teamId||g.home===s.teamId);if(own)s.lastGame=own;
@@ -484,6 +501,9 @@ export function migrateSeason(s,data){
   s.scheduleUpgrade={from:oldLength,to:SEASON_GAMES,day:s.day};
  }
  s.year??=2026;s.career??=[];
+ migratePlayoffs(s.playoffs);
+ // CPBL half seasons (v3.2). Older saves start the first half from their current record; past games cannot be split.
+ if(usesHalves(s)&&!s.halves){s.halves={first:{},second:{}};for(const id of Object.keys(s.teams)){const t=s.teams[id];s.halves.first[id]={w:t.w,l:t.l,rs:t.rs,ra:t.ra};}}
  s.salaryPlan??={start:0,end:seasonGames(s),fraction:1};
  initializeNews(s,data);
  if(s.event?.type==='clubhouse'&&s.event.scenario&&!s.event.options)designClubhouseChoices(s.event,data);
@@ -826,7 +846,7 @@ function recordDailyNews(s,data,games){
  if(best){const p=data.players.find(p=>p.id===best.id);addNews(s,{category:'performance',teamIds:[best.team_id],playerIds:[p.id],title:`單日焦點：${p.name} ${best.hr>=2?`${best.hr} 轟爆發`:best.h>=4?`${best.h} 安猛打`:`貢獻 ${best.rbi} 分打點`}`,text:`${club(best.team_id)} 的 ${p.name} 今日 ${best.ab} 打數 ${best.h} 安打、${best.hr} 支全壘打、${best.rbi} 分打點。`});}
  const biggest=[...games].sort((a,b)=>Math.abs(b.score[0]-b.score[1])-Math.abs(a.score[0]-a.score[1]))[0];
  if(Math.abs(biggest.score[0]-biggest.score[1])>=8)addNews(s,{category:'performance',teamIds:[biggest.away,biggest.home],title:`大比分之戰：${club(biggest.winner)} 拿下勝利`,text:`${club(biggest.away)} ${biggest.score[0]}：${biggest.score[1]} ${club(biggest.home)}。`});
- if(s.day===seasonGames(s))addNews(s,{category:'milestone',teamIds:s.playoffs.seeds,title:'例行賽落幕，四強名單出爐',text:s.playoffs.seeds.map(club).join('、')+' 晉級季後賽。'});
+ if(s.day===seasonGames(s))addNews(s,{category:'milestone',teamIds:s.playoffs.seeds,title:`例行賽落幕，${s.playoffs.seeds.length} 隊晉級季後賽`,text:s.playoffs.seeds.map(id=>`${club(id)}（${s.playoffs.notes?.[id]||'晉級'}）`).join('、')+`。首輪：${s.playoffs.roundLabel}。`});
  if(s.champion)addNews(s,{category:'milestone',teamIds:[s.champion],title:`${club(s.champion)} 奪下總冠軍`,text:'本季最後一戰落幕，冠軍球團正式誕生。'});
 }
 function initializeNews(s,data){

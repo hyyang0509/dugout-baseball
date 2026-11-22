@@ -1,8 +1,8 @@
 // DUGOUT GM layer: the field manager, board goals and job security, GM reputation titles, and fan / pundit buzz.
 // It hooks into the engine (HOOKS) so a season keeps running even if this module is not loaded (tests, AI leagues).
 import {HOOKS, rosterFor, hasBat, hasPitch, ovr, potential, playerAge, payroll, teamStrategy, standings, seasonGames, idHash,
-  moneyScale, clamp, addNews, homeAttendance, normOffer, tradeDeadline, salaryOf, optimizeLineup} from './engine.js?v=32';
-import {teamReport, tradeImpact} from './gm.js?v=32';
+  moneyScale, clamp, addNews, homeAttendance, normOffer, tradeDeadline, salaryOf, optimizeLineup, currentPicture} from './engine.js?v=33';
+import {teamReport, tradeImpact} from './gm.js?v=33';
 
 const club = (data, id) => data.teams.find(t => t.id === id);
 const seasonYear = s => s.year || 2026;
@@ -168,10 +168,12 @@ export function goalProgress(s, data, g) {
   const label = GOAL_LABEL[g.type](g);
   if (g.type === 'wins') {const proj = Math.round(t.w + left * (played ? t.w / played : .5)); return {label, now: `${t.w} 勝（預估 ${proj} 勝）`, score: clamp((done ? t.w : proj) / g.target, 0, 1.15), done};}
   if (g.type === 'playoffs' || g.type === 'champion') {
-    const order = standings(s).map(([id]) => id), pos = order.indexOf(s.teamId) + 1, seeds = s.playoffs?.seeds;
-    if (g.type === 'playoffs') {const inn = seeds ? seeds.includes(s.teamId) : pos <= 4; return {label, now: seeds ? (inn ? '已晉級' : '未晉級') : `目前第 ${pos} 名（前 4 晉級）`, score: inn ? 1 : seeds ? 0 : pos === 5 ? .4 : .1, done: !!seeds};}
-    const champ = s.champion === s.teamId, inFinal = s.playoffs?.round === 'final' && s.playoffs.series[0].teams.includes(s.teamId);
-    return {label, now: champ ? '奪冠！' : s.phase === 'finished' ? (inFinal ? '總冠軍賽落敗' : '未奪冠') : seeds?.includes(s.teamId) ? '季後賽進行中' : `目前第 ${pos} 名`, score: champ ? 1 : inFinal ? .6 : seeds?.includes(s.teamId) ? .35 : pos <= 4 ? .3 : 0, done: s.phase === 'finished'};
+    const order = standings(s).map(([id]) => id), pos = order.indexOf(s.teamId) + 1, seeds = s.playoffs?.seeds, pic = currentPicture(s), inNow = pic.seeds.includes(s.teamId);
+    // Close to a spot: within two places of the last team in (by the full table).
+    const near = !inNow && pos <= Math.max(...pic.seeds.map(id => order.indexOf(id) + 1)) + 2;
+    if (g.type === 'playoffs') {const inn = seeds ? seeds.includes(s.teamId) : inNow; return {label, now: seeds ? (inn ? '已晉級' : '未晉級') : inNow ? `目前在晉級區（${pic.notes[s.teamId] || '晉級'}）` : `目前不在晉級區（${pic.seeds.length} 隊晉級）`, score: inn ? 1 : seeds ? 0 : near ? .4 : .1, done: !!seeds};}
+    const po = s.playoffs, finalTeams = po?.final ? (po.series[0]?.teams || po.history?.at(-1)?.series[0]?.teams || []) : [], inFinal = finalTeams.includes(s.teamId), champ = s.champion === s.teamId;
+    return {label, now: champ ? '奪冠！' : s.phase === 'finished' ? (inFinal ? '總冠軍賽落敗' : '未奪冠') : seeds?.includes(s.teamId) ? '季後賽進行中' : `目前第 ${pos} 名`, score: champ ? 1 : inFinal ? .6 : seeds?.includes(s.teamId) ? .35 : inNow ? .3 : 0, done: s.phase === 'finished'};
   }
   if (g.type === 'payroll') {const pay = payroll(s, data, s.teamId); return {label, now: `目前 US$${(pay / 1e6).toFixed(2)}M`, score: pay <= g.target ? 1 : clamp(1 - (pay - g.target) / g.target * 5, 0, 1), done};}
   if (g.type === 'profit') {const d = f.cash - (s.board?.startCash ?? f.cash); return {label, now: `${d >= 0 ? '+' : '−'}US$${(Math.abs(d) / 1e6).toFixed(2)}M`, score: d >= 0 ? 1 : clamp(1 + d / Math.max(1, s.board.startCash) * 4, 0, 1), done};}
