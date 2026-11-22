@@ -363,3 +363,11 @@ html[data-theme=dark]{--art-board:#0a2a20;--art-dim:#2f5a49}
 .standings-title{margin:14px 16px 6px;font-size:14px}
 .league-table .clinch{color:var(--amber);font-weight:700;white-space:nowrap}
 .table-team>span{display:flex;flex-direction:column;line-height:1.25}.table-team .clinch{font-size:10px;font-weight:600}
+
+/* v3.2 player database */
+.pdb-table td{vertical-align:middle}.pdb-table .player-name small{white-space:nowrap}
+.pdb-stat{white-space:nowrap;font-size:12px}
+.pdb-pay{white-space:nowrap}.pdb-pay small{display:block;color:var(--muted);font-size:11px}
+.pdb-pay .expiring{color:var(--amber);font-weight:700}
+.tag.locked{background:var(--red);color:#fff}
+.pdb-table .btn.small{white-space:nowrap}

@@ -4,7 +4,7 @@ import {LEAGUES,loadLeague,loadLegacyRoster} from './leagues.js?v=33';
 import {packWorld,WORLD_KEY,LEAGUE_ORDER,LEAGUE_NAME,LEAGUE_SHORT,HOME_LEAGUE,isForeign,toWorldScale,makeWorld,worldDatas,worldNextDay,restoreWorld,legacyRosterNeeds,attachLegacyPool,userSeason,worldTop,leagueStrength,isKnown,ratingView,ovrView,startScouting,scoutCost,scoutingDaysLeft,scouting,SCOUT_DAYS,SCOUT_SLOTS} from './world.js?v=33';
 import {startOffseason,completeOffseason,setExpiringDecision,setExpiringOffer,releaseInOffseason,offseasonReleaseCheck,setPostingDecision,setBid,bidStatus,leagueSalary,offerValue,FOREIGN_QUOTA,POSTING_FEE} from './offseason.js?v=33';
 import {portraitSVG,managerCapSVG} from './portrait.js?v=33';
-import {BAT_COLUMNS,PIT_COLUMNS,statRows,batLine,pitchLine,ip,warContext,batWar,pitWar,fmtWar} from './stats.js?v=33';
+import {BAT_COLUMNS,PIT_COLUMNS,statRows,batLine,pitchLine,ip,warContext,batWar,pitWar,fmtWar,leagueBaselines,opsPlus,eraPlus} from './stats.js?v=33';
 import {MANAGER_STYLES,managerOf,managerCandidates,managerFee,hireManager,setSelfManaged,gmOf,TITLES,titleInfo,boardStatus,jobOffers,takeJob,fansOf,sentimentLabel,ensureFront} from './front.js?v=33';
 import {CATEGORIES,bestLineup,teamReport,leagueProfiles,tradeImpact,assistantOf,assistantReport,assistantVerdict,assistantCandidates,assistantFee,assistantStars,hireAssistant,ASSISTANT_STYLES} from './gm.js?v=33';
 import {START_YEAR,currentPicture,postseasonFormat,halfStandings,halfBoundary,seriesGame,seriesDone,teamStrategy,STRATEGY_LABEL,STRATEGY_HINT,untouchables,tradeCounters,playerTraits,TRAIT_LABELS,TRAIT_HINTS,RARITY_LABEL,gateEstimate,saveVersionSupported,missingSavePlayers,makeSeason,nextDay,resolveEvent,standings,autoLineup,availableLineup,chooseStarter,hasBat,hasPitch,batValue,pitchValue,teamOf,rosterFor,positionsOf,migrateSeason,setLineup,setPosition,assignFielding,salaryOf,payroll,remainingSalary,evaluateTrade,executeTrade,setTicketPrice,seasonGames,tradeDeadline,salaryFractionRemaining,dailySalary,EVENT_RATE,eventChoiceStatus,advanceSeason,seasonData,playerAge,overall,positionLabel,ovr,potential,g100,g100delta,primaryPosition,normOffer,isImport,importCount,FOREIGN_LIMIT,releaseCheck,releasePlayer,clamp,salaryFor,contractYears,offerOutlook,OUTLOOK_LABEL,extensionCheck,extendContract,freeAgentPool,signCheck,signFreeAgent,freeAgentDeadline} from './engine.js?v=33';
@@ -151,45 +151,63 @@ function standingsPage(){
 }
 let faFilter='all',faPos='all',faAge='all',faSort='ovr',faBiddable=false;
 // ---- Player database: every rostered player, searchable and filterable.
-let pdbQuery='',pdbLeague='all',pdbTeam='all',pdbPos='all',pdbAge='all',pdbOrigin='all',pdbSort='ovr',pdbLimit=60;
-const PDB_SORT=[['ovr','綜合能力'],['age','年齡（小到大）'],['age-desc','年齡（大到小）'],['name','姓名']];
+let pdbQuery='',pdbLeague='all',pdbTeam='all',pdbPos='all',pdbAge='all',pdbOrigin='all',pdbSort='ovr',pdbDeal='all',pdbLimit=60;
+const PDB_SORT=[['ovr','綜合能力'],['war','本季 WAR'],['pot','潛力'],['stat','本季成績（OPS+／ERA+）'],['salary','年薪（低到高）'],['salary-desc','年薪（高到低）'],['age','年齡（小到大）'],['age-desc','年齡（大到小）'],['name','姓名']];
+// Trade-oriented filters; all of them except 'all' only list your own league (the only one you can trade in).
+const PDB_DEAL=[['all','全部球員'],['available','可交易（他隊、非非賣品）'],['expiring','合約今年到期'],['sellers','重建中球隊的球員'],['mine','本隊球員']];
 const PDB_ORIGIN=[['all','本國與洋將'],['home','本國球員'],['foreign','洋將']];
 function pdbGroup(p){if(hasPitch(p)&&!hasBat(p))return p.role==='SP'||p.role==='TWP'?'SP':'RP';const x=primaryPosition(p);return x==='C'?'C':['1B','2B','3B','SS','IF'].includes(x)?'IF':['LF','CF','RF','OF'].includes(x)?'OF':x==='DH'?'DH':'IF';}
+function pdbDealOk(r){if(pdbDeal==='all')return true;if(!r.own)return false;if(pdbDeal==='mine')return r.mine;if(pdbDeal==='available')return r.tradable;if(pdbDeal==='expiring')return r.years<=1&&!r.mine;if(pdbDeal==='sellers')return !r.mine&&r.strategy==='rebuilding';return true;}
+// Sorts with empty values (no stats yet, unknown potential) last.
+function pdbCompare(a,b){const last=(x,y,f)=>(x==null)-(y==null)||(x==null?0:f(x,y));
+ if(pdbSort==='war')return last(a.war,b.war,(x,y)=>y-x)||b.ovr-a.ovr;if(pdbSort==='pot')return last(a.pot,b.pot,(x,y)=>y-x)||b.ovr-a.ovr;if(pdbSort==='stat')return last(a.plus,b.plus,(x,y)=>y-x)||b.ovr-a.ovr;
+ if(pdbSort==='salary')return a.salary-b.salary;if(pdbSort==='salary-desc')return b.salary-a.salary;
+ if(pdbSort==='age')return (a.age??99)-(b.age??99);if(pdbSort==='age-desc')return (b.age??0)-(a.age??0);if(pdbSort==='name')return a.p.name.localeCompare(b.p.name,'zh-Hant');return b.ovr-a.ovr;}
 function pdbAgeOk(a){if(pdbAge==='all')return true;if(a==null)return false;return pdbAge==='u25'?a<=25:pdbAge==='26-30'?a>=26&&a<=30:pdbAge==='31-34'?a>=31&&a<=34:a>=35;}
 function pdbRows(){
  const out=[];
  for(const l of world?LEAGUE_ORDER:[null]){
   if(pdbLeague!=='all'&&l!==pdbLeague)continue;
   const s=l?world.leagues[l]:state,d=l?datas[l]:data;if(!s||!d)continue;
+  if(pdbDeal!=='all'&&l&&l!==world.userLeague)continue;
+  const ctx={war:warContext(s),base:leagueBaselines(s)};
   for(const t of d.teams){if(pdbTeam!=='all'&&t.id!==pdbTeam)continue;
    for(const p of rosterFor(s,d,t.id)){
     const own=!world||l===world.userLeague,view=own?null:ovrView(world,p,l);
-    out.push({p,league:l,team:t,age:p.birth_date?playerAge(s,p):null,ovr:own?overall(p):view.value,shown:own?String(g100(overall(p))):view.known?String(g100(view.value)):`≈${Math.round(g100(view.value)/5)*5}`,foreign:!!(l&&isForeign(p,l))});
+    const b=s.batting[p.id],q=s.pitching[p.id],arm=hasPitch(p)&&!hasBat(p),bw=batWar(b,ctx.war,p),pw=pitWar(q,ctx.war);
+    const bl=b?.pa?batLine(b):null,pl=q?.outs?pitchLine(q):null,mine=t.id===s.teamId&&own,locked=own&&!mine&&untouchables(s,d,t.id).includes(p.id);
+    // Stat used for sorting: OPS+ for hitters, ERA+ for pitchers (100 = league average), with a small sample floor.
+    const plus=arm?(pl&&pl.outs>=30?eraPlus(pl,ctx.base):null):(bl&&bl.pa>=20?opsPlus(bl,ctx.base):null);
+    out.push({p,league:l,team:t,age:p.birth_date?playerAge(s,p):null,ovr:own?overall(p):view.value,shown:own?String(g100(overall(p))):view.known?String(g100(view.value)):`≈${Math.round(g100(view.value)/5)*5}`,foreign:!!(l&&isForeign(p,l)),
+     own,mine,locked,tradable:own&&!mine&&!locked,pot:own?potential(p,s):null,war:bw||pw?(bw?.war||0)+(pw?.war||0):null,plus,
+     statText:arm?(pl?`ERA ${pl.era.toFixed(2)} · ${ip(pl.outs)} 局`:'尚未登板'):(bl?`OPS ${bl.ops.toFixed(3).replace(/^0/,'')} · ${bl.hr} 轟`:'尚未出賽'),
+     salary:salaryFor(s,p),years:contractYears(s,p),strategy:own?teamStrategy(s,d,t.id):null});
    }}
  }
  return out;
 }
 function pdbResults(){
  const q=pdbQuery.trim().toLowerCase();
- const list=pdbRows().filter(r=>(!q||[r.p.name,r.p.source_name,r.team.zh,r.team.abbr].some(x=>x&&String(x).toLowerCase().includes(q)))&&(pdbPos==='all'||pdbGroup(r.p)===pdbPos)&&pdbAgeOk(r.age)&&(pdbOrigin==='all'||(pdbOrigin==='foreign')===r.foreign))
-  .sort((a,b)=>pdbSort==='age'?(a.age??99)-(b.age??99):pdbSort==='age-desc'?(b.age??0)-(a.age??0):pdbSort==='name'?a.p.name.localeCompare(b.p.name,'zh-Hant'):b.ovr-a.ovr);
+ const list=pdbRows().filter(r=>(!q||[r.p.name,r.p.source_name,r.team.zh,r.team.abbr].some(x=>x&&String(x).toLowerCase().includes(q)))&&(pdbPos==='all'||pdbGroup(r.p)===pdbPos)&&pdbAgeOk(r.age)&&(pdbOrigin==='all'||(pdbOrigin==='foreign')===r.foreign)&&pdbDealOk(r))
+  .sort(pdbCompare);
  if(!list.length)return '<div class="empty">找不到符合條件的球員。試試其他關鍵字或放寬篩選。</div>';
- const rows=list.slice(0,pdbLimit).map(r=>`<tr class="${r.team.id===state.teamId&&(!world||r.league===world.userLeague)?'your-team':''}"><td><button class="player-name" data-action="player" data-id="${esc(r.p.id)}"${r.league?` data-league="${r.league}"`:''}>${esc(r.p.name)}${r.foreign?' <span class="tag import" title="洋將（佔洋將名額）">洋</span>':''}<small>${world?`<span class="league-tag lg-${r.league.toLowerCase()}">${LEAGUE_SHORT[r.league]}</span> `:''}${esc(r.team.zh)}</small></button></td><td><strong>${r.shown}</strong></td><td>${esc(hasPitch(r.p)&&!hasBat(r.p)?(r.p.role||'P'):primaryPosition(r.p))}</td><td>${r.age??'—'}</td></tr>`).join('');
- return `<p class="small-muted pdb-count">共 ${list.length} 人${list.length>pdbLimit?`，顯示前 ${pdbLimit} 人`:''}</p><div class="table-scroll"><table class="league-table pdb-table"><thead><tr><th>球員 / 球隊</th><th>綜合</th><th>守位</th><th>年齡</th></tr></thead><tbody>${rows}</tbody></table></div>${list.length>pdbLimit?`<button class="btn outline pdb-more" data-action="pdb-more">再顯示 60 人</button>`:''}`;
+ const rows=list.slice(0,pdbLimit).map(r=>{const deal=r.mine?'<span class="small-muted">本隊</span>':r.locked?'<span class="tag locked" title="對方不考慮交易這名球員">非賣品</span>':r.tradable?`<button class="btn outline small" data-action="pdb-trade" data-id="${esc(r.p.id)}" data-team="${esc(r.team.id)}">談交易</button>`:'<span class="small-muted" title="只能和自己聯盟的球隊交易">—</span>';
+  return `<tr class="${r.mine?'your-team':''}"><td class="sticky-col"><button class="player-name" data-action="player" data-id="${esc(r.p.id)}"${r.league?` data-league="${r.league}"`:''}>${esc(r.p.name)}${r.foreign?' <span class="tag import" title="洋將（佔洋將名額）">洋</span>':''}<small>${world?`<span class="league-tag lg-${r.league.toLowerCase()}">${LEAGUE_SHORT[r.league]}</span> `:''}${esc(r.team.zh)}${r.strategy&&r.strategy!=='balanced'&&!r.mine?` · ${STRATEGY_LABEL[r.strategy]}`:''} · ${esc(hasPitch(r.p)&&!hasBat(r.p)?(r.p.role||'P'):primaryPosition(r.p))} · ${r.age??'—'} 歲</small></button></td><td><strong>${r.shown}</strong></td><td>${r.pot==null?'<span class="small-muted">?</span>':g100(r.pot)}</td><td><strong>${fmtWar(r.war)}</strong></td><td class="pdb-stat">${esc(r.statText)}</td><td class="pdb-pay">${compactMoney(r.salary)}<small>${r.years<=1?'<b class="expiring">季末到期</b>':`剩 ${r.years} 年`}</small></td><td>${deal}</td></tr>`;}).join('');
+ return `<p class="small-muted pdb-count">共 ${list.length} 人${list.length>pdbLimit?`，顯示前 ${pdbLimit} 人`:''}${world&&pdbDeal==='all'?' · 只能和自己聯盟的球隊交易；其他聯盟的潛力需派球探':''}</p><div class="table-scroll"><table class="league-table pdb-table"><thead><tr><th class="sticky-col">球員 / 球隊</th><th>綜合</th><th>潛力</th><th>WAR</th><th>本季成績</th><th>年薪 / 合約</th><th>交易</th></tr></thead><tbody>${rows}</tbody></table></div>${list.length>pdbLimit?`<button class="btn outline pdb-more" data-action="pdb-more">再顯示 60 人</button>`:''}`;
 }
 function playersPage(){
  const sel=(id,label,opts,val)=>`<select id="${id}" class="fa-select" aria-label="${label}">${opts.map(([v,l])=>`<option value="${esc(v)}" ${v===val?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
  const leagueTeams=world?(pdbLeague==='all'?[]:datas[pdbLeague].teams):data.teams;
  return `${pageHeading('PLAYER DATABASE','球員庫',world?'四個聯盟所有球隊的球員。其他聯盟的能力是球探估計（標 ≈），派球探後才看得到實際數字。':'聯盟所有球隊的球員。')}
  <section class="panel pdb-panel"><div class="pdb-controls"><label class="pdb-search">${icon('search')}<input id="pdb-q" type="search" placeholder="搜尋姓名、原文姓名或球隊" value="${esc(pdbQuery)}" autocomplete="off" aria-label="搜尋球員"></label>
- <div class="fa-refine">${world?sel('pdb-league','聯盟',[['all','全部聯盟'],...LEAGUE_ORDER.map(id=>[id,LEAGUE_NAME[id]])],pdbLeague):''}${leagueTeams.length?sel('pdb-team','球隊',[['all','全部球隊'],...leagueTeams.map(t=>[t.id,t.zh])],pdbTeam):''}${sel('pdb-pos','守位',FA_POS,pdbPos)}${sel('pdb-age','年齡',FA_AGE,pdbAge)}${world||state.league!=='MLB'?sel('pdb-origin','身分',PDB_ORIGIN,pdbOrigin):''}${sel('pdb-sort','排序',PDB_SORT,pdbSort)}</div></div>
+ <div class="fa-refine">${sel('pdb-deal','交易條件',PDB_DEAL,pdbDeal)}${world?sel('pdb-league','聯盟',[['all','全部聯盟'],...LEAGUE_ORDER.map(id=>[id,LEAGUE_NAME[id]])],pdbLeague):''}${leagueTeams.length?sel('pdb-team','球隊',[['all','全部球隊'],...leagueTeams.map(t=>[t.id,t.zh])],pdbTeam):''}${sel('pdb-pos','守位',FA_POS,pdbPos)}${sel('pdb-age','年齡',FA_AGE,pdbAge)}${world||state.league!=='MLB'?sel('pdb-origin','身分',PDB_ORIGIN,pdbOrigin):''}${sel('pdb-sort','排序',PDB_SORT,pdbSort)}</div></div>
  <div id="pdb-results">${pdbResults()}</div></section>`;
 }
 function refreshPdb(){const el=$('#pdb-results');if(el)el.innerHTML=pdbResults();}
 document.addEventListener('input',e=>{if(e.target.id==='pdb-q'){pdbQuery=e.target.value;pdbLimit=60;refreshPdb();}});
 document.addEventListener('change',e=>{const id=e.target.id,v=e.target.value;
  if(id==='pdb-league'){pdbLeague=v;pdbTeam='all';pdbLimit=60;render();return;}
- if(id==='pdb-team')pdbTeam=v;else if(id==='pdb-pos')pdbPos=v;else if(id==='pdb-age')pdbAge=v;else if(id==='pdb-origin')pdbOrigin=v;else if(id==='pdb-sort')pdbSort=v;else return;
+ if(id==='pdb-team')pdbTeam=v;else if(id==='pdb-deal')pdbDeal=v;else if(id==='pdb-pos')pdbPos=v;else if(id==='pdb-age')pdbAge=v;else if(id==='pdb-origin')pdbOrigin=v;else if(id==='pdb-sort')pdbSort=v;else return;
  pdbLimit=60;refreshPdb();});
 const FA_POS=[['all','全部守位'],['C','捕手'],['IF','內野手'],['OF','外野手'],['DH','指定打擊'],['SP','先發投手'],['RP','後援投手']];
 const FA_AGE=[['all','全部年齡'],['u25','25 歲以下'],['26-30','26–30 歲'],['31-34','31–34 歲'],['35+','35 歲以上']];
@@ -480,6 +498,7 @@ document.addEventListener('click',async e=>{
  if(action==='trade-counter'){const c=(window.__counters||[])[Number(el.dataset.index)];if(c){const o=normOffer(c.offer);tradeDraft={targetTeam:o.targetTeam,give:o.give,get:o.get,cash:o.cash,cashOnlyGive:!o.give.length,cashOnlyGet:!o.get.length};render();toast('已套用對方的還價，請確認後送出。');}}
  if(action==='trade-execute'){try{executeTrade(state,data,modal.offer);tradeDraft.cash=0;starter=null;save();modal=null;render();toast('交易完成，球員名單與薪資已更新。');}catch(err){modal=null;render();toast(err.message);}}
  if(action==='pdb-more'){pdbLimit+=60;refreshPdb();return;}
+ if(action==='pdb-trade'){tradeDraft={targetTeam:el.dataset.team,give:[],get:[el.dataset.id],cash:0};page='office';officeTab='trade';modal=null;render();window.scrollTo(0,0);return;}
  if(action==='nav'){page=el.dataset.page;modal=null;render();window.scrollTo(0,0);}
  if(action==='view-league'){viewLeague=el.dataset.league;leaderTab=leaderTab||'teams';render();}
  if(action==='select-team'){selectedTeam=el.dataset.id;const scroll=$('.team-grid').scrollTop;renderWelcome();$('.team-grid').scrollTop=scroll;}

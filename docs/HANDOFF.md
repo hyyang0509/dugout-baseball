@@ -102,3 +102,11 @@
 - gm.js：bestLineup(s,data,teamId) 以 leagueProfiles 的最佳九人與守位，加上前五名先發（依 ovr）與頭號後援（依 pitchValue），回傳 DEPTH_SPOTS 每格的 value（打者用 spotValue：打擊＋該守位守備，權重同 ovr 的 OVR_DEF_WEIGHT）、聯盟同格排名、tone（前三分之一 strong、後三分之一 weak）與 upgrades。沿用 cached 的快取鍵。
 - art.js defenseDiagram 的 entries 可帶 tag（第二行文字）與 tone（weak 紅框、strong 粗金框）；不帶時外觀不變。
 - 休賽季釋出：offseason.js 的 offseasonReleaseCheck／releaseInOffseason 對 o.userControlled 的球員傳 {controlled:true} 給 releaseCheck，略過「合約今年到期」的限制，並把他從 userControlled 與 resigned 移除，避免 completeOffseason 又替他續約。app 的釋出視窗在休賽季改用 offseasonReleaseCheck。
+
+## v3.2 季後賽與球員庫
+
+- dist/postseason.js（無 import 的純函式）：formatFor(league, teamIds) 決定 mlb／npb／kbo／cpbl／top4；MLB_DIVISION 與 NPB_LEAGUE 是分區對照（資料檔沒有分區欄位，新增球隊要一起更新，否則該聯盟退回 top4）。playoffPicture 算目前晉級名單與說明；startPlayoffs／advancePlayoffs 建立與推進對戰；series 物件 {key,label,teams:[上位,下位],wins,adv,need,pattern,played}，pattern 每個字元是一場（H＝上位主場）。migratePlayoffs 把舊的 {round:'semifinal'|'final'} 轉成 top4 格式。
+- engine.js：nextDay 例行賽結束呼叫 startPlayoffs；季後賽每天每組未結束系列賽各打一場，advancePlayoffs 後若有 champion 就結束球季。currentPicture(s) 給畫面與董事會目標用。中職 s.halves.first／second 由 recordHalves 每天記錄，halfBoundary(s) 為 ceil(81/2)=41。
+- 美職季後賽最多 22 天（舊制 8 天），整季約 94–103 天。
+- app.js：teamTables 依 standingGroups 分表；playoffPanel 顯示目前與歷史輪次；userOnBye 處理第 1、2 種子輪空時的首頁文字。
+- 球員庫：pdbRows 每列加上 war、plus（OPS+／ERA+，打席 20、局數 10 以上才排序）、pot（只有自己聯盟）、salary、years、strategy、locked（untouchables）、tradable。pdbDeal 篩選只列自己聯盟。pdb-trade 動作把 tradeDraft 設為 {targetTeam, get:[id]} 並切到辦公室交易頁。
