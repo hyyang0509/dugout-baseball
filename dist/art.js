@@ -1,4 +1,4 @@
-import {STORY_BY_ID} from './stories.js?v=29';
+import {STORY_BY_ID} from './stories.js?v=30';
 // BM27 scene art: flat scoreboard-style SVG illustrations (no photos, no real logos).
 // Pure functions; story scenes come from stories.js. Colours come from the page's CSS variables so both themes work.
 
