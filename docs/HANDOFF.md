@@ -73,3 +73,10 @@
 - LEAGUE_ORDER 加入 KBO；origin 'KOR'；FOREIGN_LIMIT/FOREIGN_QUOTA KBO 4；LEAGUE_PAY .15；LEAGUE_SCALE 縮小差距（NPB -6、KBO -9、CPBL -12）。restoreWorld 對缺少的聯盟呼叫 addLeague，模擬到使用者聯盟同一天。
 - g100(v) 只用於顯示：70 + (v − 50) × 1.6，限制在 1–100；g100delta 用於戰力差。引擎與存檔數值仍是 20–80。
 - offseason.market.crossTotal 記錄跨聯盟移動總數。
+
+## v2.8 打席模型
+
+- engine.js 的 plateOdds(s,batter,pitcher,defense) 回傳每個打席的三振、保送、全壘打、安打機率（皆為佔全部打席的比例），以及安打中的二壘、三壘安打比例。simulateGame 只透過它擲骰。
+- 安打 = 場內球比例 ×（場內球安打率）。場內球安打率由接觸、力量、速度、位移、球威、控球與 teamDefense 決定，所以三振、守備都會影響失分。
+- 跑壘與雙殺依跑者／打者速度調整；用球數在擲出結果後決定。
+- tests/ratings-impact.test.js 檢查各能力的影響方向，並跑一個美職球季確認能力與 OPS、防禦率、勝率的相關係數，以及每隊每場 3.8–5.2 分。調整係數後要一併跑這個測試。

@@ -212,6 +212,22 @@ export function chooseStarter(s,data,teamId,preferred=null){
  })[0]?.id;
 }
 function adjusted(s,p,key){const c=s.condition[p.id];return (p.ratings[key]||50)*(1+c.form*.09)*(c.energy<35?.86:1)*(1+((s.teams[teamOf(s,p)].morale??50)-50)*.001);}
+/**
+ * Outcome probabilities for one plate appearance (each is a share of all plate appearances).
+ * Strikeouts, walks and home runs come first; the rest are balls in play, and the hit rate on
+ * those (BABIP) depends on the batter's contact, power and speed against the pitcher's stuff and
+ * movement and the fielders' defence. So a strikeout pitcher also allows fewer hits.
+ */
+export function plateOdds(s,batter,pitcher,defense=50){
+ const b=key=>adjusted(s,batter,key),p=key=>adjusted(s,pitcher,key);
+ const stuff=p('stuff'),control=p('control'),movement=p('movement'),contact=b('contact'),power=b('power'),eye=b('eye'),speed=b('speed');
+ const k=clamp(.215*Math.pow(10,(stuff-contact)/95+(control-50)/500),.06,.45);
+ const bb=clamp(.08*Math.pow(10,(eye-control)/85),.02,.2);
+ const hr=clamp(.03*Math.pow(10,(power-movement)/75-(stuff-50)/400-(control-50)/400),.004,.12);
+ const babip=clamp(.317+(contact-50)*.0022+(power-50)*.0008+(speed-50)*.0012-(movement-50)*.0022-(stuff-50)*.0008-(control-50)*.0008-(defense-50)*.0015,.2,.4);
+ return {k,bb,hr,hit:Math.max(0,1-k-bb-hr)*babip,
+  double:clamp(.195+(power-50)*.004+(speed-50)*.0015,.08,.32),triple:clamp(.02+(speed-50)*.0015,.003,.06)};
+}
 export function simulateGame(s,data,awayId,homeId,options={}){
  const byId=Object.fromEntries(data.players.map(p=>[p.id,p]));
  for(const id of [awayId,homeId])if(!(id===s.teamId&&s.manualLineup))optimizeLineup(s,data,id);
@@ -252,14 +268,12 @@ export function simulateGame(s,data,awayId,homeId,options={}){
     const limit=usedArms[defense].size===1?(s.teams[teamIds[defense]].starterLimit||85):27;
     if(pc.pitches>=limit||s.condition[pid].energy<20){changePitcher(defense);pid=arms[defense];pitcher=byId[pid];pc=pstat(pid);if(!usedArms[defense].has(pid)){usedArms[defense].add(pid);startEnergy[pid]=s.condition[pid].energy;pitching(s,pid).g++;enter(defense,pid,score[defense]-score[side]);}}
     const bid=lineups[side][index[side]++%9],batter=byId[bid],bs=batting(s,bid),pb=pitching(s,pid),gb=bstat(bid);bs.pa++;
-    const pitches=3+Math.floor(random(s)*4);pc.pitches+=pitches;pb.pitches+=pitches;pitchedPA[pid]=(pitchedPA[pid]||0)+1;
+    const odds=plateOdds(s,batter,pitcher,teamDefense[defense]);
+    let roll=random(s),event='out';if(roll<odds.k)event='k';else if((roll-=odds.k)<odds.bb)event='bb';else if((roll-=odds.bb)<odds.hr)event='hr';else if((roll-=odds.hr)<odds.hit)event='hit';
+    // Strikeouts and walks take more pitches, so a pitcher with good control goes deeper into games.
+    const pitches=event==='k'?4+Math.floor(random(s)*4):event==='bb'?5+Math.floor(random(s)*3):2+Math.floor(random(s)*5);pc.pitches+=pitches;pb.pitches+=pitches;pitchedPA[pid]=(pitchedPA[pid]||0)+1;
     s.condition[pid].lastPlayed=s.day;s.condition[pid].energy=clamp(startEnergy[pid]-pc.pitches*(usedArms[defense].size===1?.79:1.8),0,100);
-    const stuff=adjusted(s,pitcher,'stuff'),control=adjusted(s,pitcher,'control'),movement=adjusted(s,pitcher,'movement');
-    const k=clamp(.22*Math.pow(10,(stuff-adjusted(s,batter,'contact'))/115),.07,.44);
-    const bb=clamp(.08*Math.pow(10,(adjusted(s,batter,'eye')-control)/105),.025,.19);
-    const hr=clamp(.03*Math.pow(10,(adjusted(s,batter,'power')-movement)/90),.004,.11);
-    const hit=clamp(.215+(adjusted(s,batter,'contact')-50)*.002-(movement-50)*.0008,.12,.32);
-    let roll=random(s),event='out';if(roll<k)event='k';else if((roll-=k)<bb)event='bb';else if((roll-=bb)<hr)event='hr';else if((roll-=hr)<hit)event='hit';
+    const speedOf=id=>adjusted(s,byId[id],'speed');
     const runner={id:bid,pitcher:pid};const before=[...score];
     if(event==='bb'){
       bs.bb++;gb.bb++;pb.bb++;pc.bb++;
@@ -269,17 +283,22 @@ export function simulateGame(s,data,awayId,homeId,options={}){
      if(event==='k'){outs++;pb.outs++;pc.outs++;bs.k++;gb.k++;pb.k++;pc.k++;}
      else if(event==='hr'||event==='hit'){
       bs.h++;gb.h++;pb.h++;pc.h++;hits[side]++;
-      let distance=event==='hr'?4:random(s)<.2?2:random(s)<.025?3:1;
+      let distance=event==='hr'?4:random(s)<odds.double?2:random(s)<odds.triple?3:1;
       if(distance===4){bs.hr++;gb.hr++;inc(pb,'hr');}else if(distance===2)inc(bs,'d');else if(distance===3)inc(bs,'t');
       const next=[null,null,null];
-      for(let b=2;b>=0;b--)if(bases[b]){let target=b+distance;if(distance===1&&b===1&&random(s)<.55)target=3;if(distance===2&&b===0&&random(s)<.4)target=3;if(target>=3)scored(bases[b],bid);else next[target]=bases[b];}
+      // Faster runners take the extra base more often.
+      for(let b=2;b>=0;b--)if(bases[b]){let target=b+distance;const run=(speedOf(bases[b].id)-50)*.008;
+       if(distance===1&&b===1&&random(s)<clamp(.55+run,.3,.85))target=3;
+       else if(distance===1&&b===0&&!next[2]&&random(s)<clamp(.25+run,.08,.5))target=2;
+       if(distance===2&&b===0&&random(s)<clamp(.4+run,.15,.7))target=3;
+       if(target>=3)scored(bases[b],bid);else next[target]=bases[b];}
       if(distance===4)scored(runner,bid);else next[distance-1]=runner;bases=next;
       if(distance===4)note(inning,side,`${batter.name} 轟出${score[side]-before[side]}分全壘打`,4+(inning>=7?3:0));
      }else{
       const avgDefense=teamDefense[defense];
       if(random(s)<clamp(.013-(avgDefense-50)*.0003,.004,.025)){
        errors[defense]++;runner.unearned=true;const next=[runner,null,null];for(let b=2;b>=0;b--)if(bases[b]){if(b===2)scored(bases[b],null,true);else next[b+1]=bases[b];}bases=next;phantomOuts++;
-      }else if(bases[0]&&outs<2&&random(s)<.16){outs+=2;pb.outs+=2;pc.outs+=2;bases[0]=null;}
+      }else if(bases[0]&&outs<2&&random(s)<clamp(.16-(speedOf(bid)-50)*.004,.06,.26)){outs+=2;pb.outs+=2;pc.outs+=2;bases[0]=null;}
       else{if(bases[2]&&outs<2&&random(s)<.25){scored(bases[2],bid);bases[2]=null;bs.ab--;gb.ab--;inc(bs,'sf');}outs++;pb.outs++;pc.outs++;}
      }
     }
