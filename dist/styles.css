@@ -353,3 +353,13 @@ html[data-theme=dark]{--art-board:#0a2a20;--art-dim:#2f5a49}
 .upgrade-note{margin-top:14px;padding:12px 14px;border-radius:6px;border:1px solid var(--red);display:grid;gap:4px;font-size:13px}
 .upgrade-note strong{color:var(--red)}.upgrade-note.ok{border-color:var(--line)}.upgrade-note.ok strong{color:inherit}
 @media(max-width:900px){.best-lineup-body{grid-template-columns:1fr;gap:10px}}
+
+/* v3.2 postseason */
+.series-row{display:grid;grid-template-columns:1fr auto 1fr;justify-content:initial;text-align:center;row-gap:6px}
+.series-row>small{grid-column:1/-1;color:var(--muted);font-size:11px}
+.series-row.your-team{background:color-mix(in srgb,var(--amber) 10%,transparent)}
+.series-history{border-top:1px solid var(--line)}
+.series-history>summary{cursor:pointer;padding:12px 16px;font-size:13px;color:var(--muted)}
+.standings-title{margin:14px 16px 6px;font-size:14px}
+.league-table .clinch{color:var(--amber);font-weight:700;white-space:nowrap}
+.table-team>span{display:flex;flex-direction:column;line-height:1.25}.table-team .clinch{font-size:10px;font-weight:600}
