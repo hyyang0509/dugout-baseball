@@ -23,7 +23,8 @@
 | --- | --- |
 | dist/app.js | 畫面與互動 |
 | dist/engine.js | 比賽、球季、交易、事件與年度演化 |
-| dist/art.js | 事件插圖與守備配置圖（內建 SVG，不用照片或真實商標） |
+| dist/art.js | 守備配置圖（內建 SVG） |
+| dist/img/ | 5 張 AI 生成寫實照片（無人臉、無真實商標），畫面上標示 AI 生成示意圖 |
 | dist/styles.css | 手機、桌面、亮暗色 |
 | dist/data/roster_mlb.json | MLB 初始名單與估計評級 |
 | dist/leagues.js | 聯盟資料載入與獨立存檔鍵 |
