@@ -6,13 +6,13 @@ export const LEGACY_ROSTERS={KBO:{'2026-11-19T09:31:04.904398+00:00':'roster_kbo
 export async function loadLegacyRoster(id,generatedAt){
  const file=LEGACY_ROSTERS[id]?.[generatedAt];
  if(!file)return null;
- const response=await fetch(`./data/${file}?v=29`);
+ const response=await fetch(`./data/${file}?v=30`);
  if(!response.ok)throw new Error('舊版球員名單讀取失敗');
  return response.json();
 }
 export async function loadLeague(id){
  if(!LEAGUES[id])throw new Error('未知聯盟');
- const response=await fetch(`./data/roster_${id.toLowerCase()}.json?v=29`);
+ const response=await fetch(`./data/roster_${id.toLowerCase()}.json?v=30`);
  if(!response.ok)throw new Error('球員名單讀取失敗');
  const data=await response.json();
  if(data.teams?.length!==LEAGUES[id].teams||!data.players?.length)throw new Error('聯盟資料不完整');

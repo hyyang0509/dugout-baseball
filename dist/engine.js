@@ -1,5 +1,5 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=29';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=30';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
 export const VERSION=5;
 export const SEASON_GAMES=81;
@@ -311,7 +311,7 @@ export function simulateGame(s,data,awayId,homeId,options={}){
   if(inning>=9&&score[0]!==score[1])break;
   if(inning===60)throw new Error('比賽超過延長局數上限，請重試。');
  }
- for(let side=0;side<2;side++)for(const id of lineups[side]){batting(s,id).g++;s.condition[id].energy=clamp(s.condition[id].energy-10,0,100);s.condition[id].lastPlayed=s.day;}
+ for(let side=0;side<2;side++)for(const id of lineups[side]){const bl=batting(s,id),pos=s.teams[teamIds[side]].fielding?.[id];bl.g++;if(pos){bl.pos??={};bl.pos[pos]=(bl.pos[pos]||0)+1;}s.condition[id].energy=clamp(s.condition[id].energy-10,0,100);s.condition[id].lastPlayed=s.day;}
  const winner=score[0]>score[1]?awayId:homeId,loser=winner===awayId?homeId:awayId;
  const decisions=recordDecisions(s,apps,goAhead,score,winner===awayId?0:1,boxP);
  if(!options.postseason){s.teams[winner].w++;s.teams[loser].l++;for(let side=0;side<2;side++){s.teams[teamIds[side]].rs+=score[side];s.teams[teamIds[side]].ra+=score[1-side];}}

@@ -80,3 +80,11 @@
 - 安打 = 場內球比例 ×（場內球安打率）。場內球安打率由接觸、力量、速度、位移、球威、控球與 teamDefense 決定，所以三振、守備都會影響失分。
 - 跑壘與雙殺依跑者／打者速度調整；用球數在擲出結果後決定。
 - tests/ratings-impact.test.js 檢查各能力的影響方向，並跑一個美職球季確認能力與 OPS、防禦率、勝率的相關係數，以及每隊每場 3.8–5.2 分。調整係數後要一併跑這個測試。
+
+## v2.9 WAR
+
+- stats.js：warContext(s)（聯盟 wOBA、WOBA_SCALE、每九局失分、每勝得分 rpw）、batWar(b,ctx,p)（bat/pos/fld/rep 皆為得分，war 為勝場）、pitWar(q,ctx)、playerWar(s,p,ctx)、fmtWar。stats.js 自 engine.js?v=30 匯入 defenseAt、primaryPosition；更新資產版本號時要一起改。
+- statRows 多一個 playerOf(id) 參數，打者 WAR 的守位與守備需要球員資料；沒有傳入時守備為 0、未記錄守位的場次算 DH。
+- simulateGame 在 s.batting[id].pos 記錄每個守位的出賽場次（依 s.teams[t].fielding）。沒有 pos 或場次不足的部分以主守位計。
+- 投手 WAR 用全部失分（RA9），因為本遊戲投手會影響場內球安打率，不適合只用 FIP。守備得分沒有從投手扣除，係數刻意偏小。
+- tests/war.test.js 檢查各部分的方向、全聯盟總量與打者比例、守位紀錄，以及球隊 WAR 與得失分差的相關。
