@@ -88,3 +88,11 @@
 - simulateGame 在 s.batting[id].pos 記錄每個守位的出賽場次（依 s.teams[t].fielding）。沒有 pos 或場次不足的部分以主守位計。
 - 投手 WAR 用全部失分（RA9），因為本遊戲投手會影響場內球安打率，不適合只用 FIP。守備得分沒有從投手扣除，係數刻意偏小。
 - tests/war.test.js 檢查各部分的方向、全聯盟總量與打者比例、守位紀錄，以及球隊 WAR 與得失分差的相關。
+
+## v3.0 寫實照片
+
+- dist/img/ 有 5 張 AI 生成照片（stadium-night、dugout、champion、offseason、office），1600px 寬 WebP。由擁有者用 Gemini 生成；照片不可出現清楚人臉、真實隊徽、可辨識的真實球場或文字。
+- app.js：photoBanner(name,alt) 產生辦公室、休賽季的橫幅（figcaption 標示 AI 生成示意圖）；開始畫面 .welcome-intro 與首頁 .season-hero 以 .photo-bg + .photo-stadium/.photo-dugout/.photo-champion 當背景，內含 .photo-note 標示。賽季結束時首頁改用 photo-champion。
+- CSS 背景規則用 `:root .photo-bg.photo-x` 提高優先順序，才能蓋過主題的 `html[data-theme=dark] .season-hero{background:…}`。
+- 事件視窗不再有插圖；art.js 只剩 defenseDiagram／shortName。stories.js 模板的 scene 欄位已無作用，保留以免動到 139 個模板。
+- tests/art.test.js 檢查照片存在、小於 200KB、有被使用，且每個照片位置都有 AI 生成標示。

@@ -1,6 +1,6 @@
 // DUGOUT stat lines: derived batting and pitching numbers, shared by tables and player cards.
 // Simulated season stats include the postseason (team records count the regular season only).
-import {defenseAt, primaryPosition, hasBat} from './engine.js?v=30';
+import {defenseAt, primaryPosition, hasBat} from './engine.js?v=31';
 
 export const ip = outs => `${Math.floor((outs || 0) / 3)}.${(outs || 0) % 3}`;
 const rate = (n, d, digits = 3) => d ? (n / d).toFixed(digits).replace(/^0\./, '.') : '—';

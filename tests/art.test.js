@@ -1,19 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {sceneFor, eventArt, SCENE_NAMES, defenseDiagram, shortName} from '../dist/art.js';
-import {STORIES} from '../dist/stories.js';
-
-test('every story and event type gets a real scene illustration', () => {
-  for (const t of STORIES) assert.ok(SCENE_NAMES.includes(sceneFor({type: 'clubhouse', story: t.id})), t.id);
-  for (const type of ['injury', 'training', 'offfield', 'clubhouse', 'trade_offer', 'league_trade', 'team', 'unknown'])
-    assert.ok(SCENE_NAMES.includes(sceneFor({type})), type);
-  // Every scene is reachable and renders as a banner.
-  const used = new Set([...STORIES.map(t => sceneFor({type: 'clubhouse', story: t.id})), 'trade', 'office']);
-  assert.deepEqual([...used].sort(), [...SCENE_NAMES].sort());
-  for (const t of STORIES) assert.match(eventArt({type: 'clubhouse', story: t.id}), /^<svg[^>]*viewBox="0 0 560 150"/);
-  // No photos or external images: everything is inline vector art.
-  for (const t of STORIES) assert.ok(!/<image|href=/.test(eventArt({type: 'clubhouse', story: t.id})));
-});
+import fs from 'node:fs';
+import {defenseDiagram, shortName} from '../dist/art.js';
 
 test('defense diagram labels all nine positions and escapes names', () => {
   const pos = ['C', 'P', '1B', '2B', 'SS', '3B', 'LF', 'CF', 'RF'];
@@ -22,4 +10,18 @@ test('defense diagram labels all nine positions and escapes names', () => {
   assert.ok(!svg.includes('<b>'));
   assert.equal(shortName('Corey Seager'), 'Seager');
   assert.equal(shortName('王彥程'), '王彥程');
+});
+
+test('realistic photos exist, stay small, and are labelled as AI-generated wherever they appear', () => {
+  const app = fs.readFileSync(new URL('../dist/app.js', import.meta.url), 'utf8'), css = fs.readFileSync(new URL('../dist/styles.css', import.meta.url), 'utf8');
+  for (const name of ['stadium-night', 'dugout', 'champion', 'offseason', 'office']) {
+    const file = new URL(`../dist/img/${name}.webp`, import.meta.url);
+    assert.ok(fs.statSync(file).size < 200_000, name);
+    assert.ok(app.includes(`'${name}'`) || css.includes(`img/${name}.webp`), `${name} is used`);
+  }
+  // Every photo background carries the on-screen note; banners carry it in their caption.
+  assert.equal((app.match(/photo-bg /g) || []).length, (app.match(/<span class="photo-note">AI 生成示意圖<\/span>/g) || []).length);
+  assert.match(app, /<figcaption>AI 生成示意圖<\/figcaption>/);
+  // Events no longer carry illustrations.
+  assert.ok(!app.includes('eventArt'));
 });
