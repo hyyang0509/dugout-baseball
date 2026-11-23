@@ -110,3 +110,35 @@
 - 美職季後賽最多 22 天（舊制 8 天），整季約 94–103 天。
 - app.js：teamTables 依 standingGroups 分表；playoffPanel 顯示目前與歷史輪次；userOnBye 處理第 1、2 種子輪空時的首頁文字。
 - 球員庫：pdbRows 每列加上 war、plus（OPS+／ERA+，打席 20、局數 10 以上才排序）、pot（只有自己聯盟）、salary、years、strategy、locked（untouchables）、tradable。pdbDeal 篩選只列自己聯盟。pdb-trade 動作把 tradeDraft 設為 {targetTeam, get:[id]} 並切到辦公室交易頁。
+
+## v3.3 存檔改用 IndexedDB
+
+- dist/storage.js：createSaveStore({key,idb,local})。load() 回傳 {text,where:'idb'|'local',savedAt,size,raw,format,migrated} 或 null；save(text) 合併寫入（寫入中再呼叫只會在結束後寫最新一份），回傳 {ok,where,size,...}。idb／local 後端可注入，tests/storage-v33.test.js 用記憶體假後端。
+- IndexedDB 紀錄：{v:1,format:'gzip'|'json',data,savedAt,raw,size}。沒有 CompressionStream 時存未壓縮 JSON。
+- 搬移：localStorage 有存檔時寫入 IndexedDB、讀回比對字串完全相同後才刪 localStorage；失敗就繼續用 localStorage。兩邊都有時比較 savedAt（app 的 saveText() 每次存檔寫入 world.savedAt；舊存檔沒有 savedAt 視為最舊）。
+- 解不開的 IndexedDB 紀錄丟 SaveReadError，並另存一份到 `dugout.world.v1.unreadable`（已有就不覆蓋）；IndexedDB 存在卻無法開啟、localStorage 也沒有存檔時同樣報錯。app 在選隊畫面顯示 .load-problem。
+- app.js：save() 同步產生 JSON、排入非同步寫入，結果由 saveDone 更新 saveError／saveInfo；需要失敗回復的地方（installSeason、進入休賽季）用 await saveNow()。installSeason 改為 async，回傳 Promise<boolean>。有未完成寫入時 beforeunload 會提示。
+- openSave(parsed)：舊名單補 playerPool 後 restoreWorld；讀檔與匯入共用。匯出檔就是 packWorld 的 JSON。
+- 存檔大小（中職、seed 7）：新開季 401KB → gzip 53KB；季末約 2.6MB 字元（localStorage 以 UTF-16 計約 5.2MB，即原本無法儲存的原因）→ gzip 約 340KB；休賽季後約 1.4MB → 185KB。v3.0 的照片只在 dist/img/，不進存檔。
+
+## v3.4 董事會難度
+
+- front.js：DIFFICULTY（easy／normal／hard／hell：start、fire、penalty、checks、midFire）、DIFFICULTY_ORDER。難度存在 s.gm.difficulty（advanceSeason 帶 gm 到下一季）；沒有這個欄位的舊存檔由 gmOf 補成 easy，等於 v3.3 以前的規則。
+- s.gm.season.low：本季玩過的最低難度。setDifficulty(s,level,{initial}) 調低隨時可以；調高只在 canRaiseDifficulty（例行賽第 0 天，或球季結束且沒有待處理的解職）。第 0 天改難度時本季直接算新難度；生涯第一季第 0 天改難度時，信任度也改成新難度的起始值。reviewSeason／季中解職寫入 g.history 的 difficulty 是 season.low。
+- 新遊戲：app 在 makeWorld 後呼叫 setDifficulty(userSeason(w),level,{initial:true})（刪掉 s.board，讓 boardOf 以 start 建立）。原隊重玩沿用目前難度。
+- confidenceDelta：(考核−60)×.6＋輿情×.15＋稱號，乘上這次考核涵蓋的球季比例；負值再乘 penalty。季中考核（midSeasonReview，daily hook 在 midNoted 之後呼叫）依 checks（困難 [.5]、地獄 [.25,.5,.75]）各用掉一部分比例（b.applied），季末只用剩下的比例，一季總權重仍是 1。困難、地獄不再發「期中評估」新聞，改發季中考核新聞。
+- 季中解職：b.result={fired:true,midseason:true,handled:false,day}。jobLost(s) 為真時 app 的 simulate 不推進、模擬按鈕停用，首頁顯示 firedSection。takeJob 在季中：新董事會 result=null、joinedDay=s.day，季末照常考核但不會解職，也不做季中考核。新工作起始信任度：easy 55（舊規則），其他為該難度 start−5。
+- 目標（makeGoals）：DIFFICULTY 的 winsBonus（0/2/4/6）加到勝場目標；extra 加目標：'rank'（standings 名次 ≤ 預估戰力名次，地獄再 −1）、'money'（已有 profit 就加 attendance，否則加 profit），各權重 25 後整體正規化成 100。boardStatus 的給分：floor（0/.5/.6/.7）以下 0 分，以上線性到 1；easy floor 0 等於舊算法。目標在董事會建立時產生，季中調低難度只改給分、不改目標。
+- 平衡參考（中職＋韓職各隊 × 2 種子、GM 不操作）：第一季被解職 輕鬆 0%、標準 9%、困難 28%、地獄 69%；兩季累計 0%、9%、41%、91%。只改目標或門檻都要重跑類似的模擬。
+
+## v3.5 GM 生涯與名人堂
+
+- dist/career.js（純函式）：生涯檔 {kind:'bm27-gm-career',version:1,gms:[{id,name,createdAt,seasons:[]}],lastGmId,savedAt}，存在 IndexedDB 鍵 dugout.gm.v1（CAREER_KEY），與世界存檔分開，用同一個 createSaveStore。
+- 只保存每季紀錄（seasons）。聲望（reputationPath）、總計（careerTotals）、時間軸（stints）、成就（achievements）都從紀錄推算，所以同一季記兩次不會重複計算。紀錄鍵 seasonKey = worldId|year|teamId|m或s；seq 是第一次記入的順序，聲望依 seq 累計。
+- 世界存檔：w.gm={id,name}、w.worldId（舊世界用 'w-'+createdAt）。app 的 save()／saveNow() 先 syncCareer()：把 userSeason 的 gmOf(s).history 全部 upsert 進生涯檔，有變動才寫入。
+- front.js 的 g.history 每筆多了 careerFacts：league、w/l（季中接任扣掉接任前戰績：board.joinRecord）、playoffs、rounds（季後賽贏的系列賽數，用 seriesWinner）、budgetPct（預算在聯盟內的位置）、share（本季在任比例）、joined、titleIds；季中解職另有 day。舊紀錄沒有 league 時標 legacy，季後賽只看冠軍。
+- 年薪：SALARY_RANGE（美職 1.0–4.0M、日職 0.4–1.5M、韓職 0.25–0.8M、中職 0.12–0.4M）依 budgetPct 內插，乘 share。獎金（年薪比例）：季後賽 10%＋每輪 5%、冠軍 25%、考核 80 以上 10%。只記在生涯檔，不動球團財務。
+- 聲望：起始 20；每筆 (勝率−.5)×40×min(1,場數/60)、季後賽 3＋每輪 2、冠軍 10、(考核−60)×.1、頭銜（冠軍操盤手、金頭腦 +2；暴君、豪賭客 −2）；正值乘聯盟（美 1.15、日 1、韓 .9、中 .85）與難度（.8/1/1.25/1.5）；解職 −8；每筆整季紀錄後往 30 回歸 4%；0–100。等級：無名 <30、普通、知名 55、頂尖 75、傳奇 90。
+- 匯出世界存檔時附 gmCareer（只含這位 GM）；匯入時先取出，再驗證世界，安裝成功後 mergeProfiles。生涯檔讀不開時 careerBlocked，不寫入、不匯入。
+- 舊存檔（沒有 w.gm）讀檔後跳出 name-gm 視窗：建立或延續 GM，已完成的球季一起記入；略過則記為「無名 GM」。
+- 介面：選隊畫面的 GM 名字／延續既有 GM（gmIdentity、chosenGm）；側欄「GM 名人堂」（page 'hall'，手機底部列不放，從董事會頁的 GM 生涯連過去）；選隊畫面右上角開 modal 'hall'。hallHTML 有 data-nolink，避免 GM 名字被當成球員連結。

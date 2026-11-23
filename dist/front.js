@@ -1,8 +1,9 @@
 // DUGOUT GM layer: the field manager, board goals and job security, GM reputation titles, and fan / pundit buzz.
 // It hooks into the engine (HOOKS) so a season keeps running even if this module is not loaded (tests, AI leagues).
 import {HOOKS, rosterFor, hasBat, hasPitch, ovr, potential, playerAge, payroll, teamStrategy, standings, seasonGames, idHash,
-  moneyScale, clamp, addNews, homeAttendance, normOffer, tradeDeadline, salaryOf, optimizeLineup, currentPicture} from './engine.js?v=33';
-import {teamReport, tradeImpact} from './gm.js?v=33';
+  moneyScale, clamp, addNews, homeAttendance, normOffer, tradeDeadline, salaryOf, optimizeLineup, currentPicture} from './engine.js?v=36';
+import {teamReport, tradeImpact} from './gm.js?v=36';
+import {seriesWinner} from './postseason.js?v=36';
 
 const club = (data, id) => data.teams.find(t => t.id === id);
 const seasonYear = s => s.year || 2026;
@@ -71,8 +72,46 @@ const blankCounters = () => ({trades: 0, tradeCashOut: 0, tradeCashIn: 0, tradeG
 export function gmOf(s) {
   s.gm ??= {career: {...blankCounters(), seasons: 0, champions: 0, fired: 0}, season: {...blankCounters(), year: seasonYear(s)}, titles: [], history: []};
   if (s.gm.season.year !== seasonYear(s)) s.gm.season = {...blankCounters(), year: seasonYear(s)};
+  // Saves from before v3.4 have no difficulty: they keep the old rules (easy).
+  if (!DIFFICULTY[s.gm.difficulty]) s.gm.difficulty = 'easy';
+  if (s.gm.season.low == null || !DIFFICULTY[s.gm.season.low]) s.gm.season.low = s.gm.difficulty;
   return s.gm;
 }
+
+// ======================= Board difficulty (v3.4) =======================
+// start: confidence on a new game; fire: season-end threshold; penalty multiplies confidence
+// losses; checks: share of the regular season at which the board reviews mid-season, with
+// midFire the threshold for firing on the spot.
+export const DIFFICULTY = {
+  easy: {label: '輕鬆', start: 60, fire: 25, penalty: 1, checks: [], midFire: null, winsBonus: 0, floor: 0, extra: [], desc: '原本的規則：季末信任度低於 25 才會被解職。'},
+  normal: {label: '標準', start: 55, fire: 30, penalty: 1.3, checks: [], midFire: null, winsBonus: 2, floor: .5, extra: [], desc: '起始信任度 55，季末低於 30 解職，扣分 ×1.3。'},
+  hard: {label: '困難', start: 45, fire: 32, penalty: 1.6, checks: [.5], midFire: 20, winsBonus: 4, floor: .6, extra: ['rank'], desc: '起始 45，季末低於 32 解職，扣分 ×1.6；球季過半先考核一次，跌破 20 當場解職。'},
+  hell: {label: '地獄', start: 42, fire: 35, penalty: 2, checks: [.25, .5, .75], midFire: 25, winsBonus: 6, floor: .7, extra: ['rank', 'money'], desc: '起始 42，季末低於 35 解職，扣分 ×2；季中每四分之一考核一次，跌破 25 當場解職。'},
+};
+export const DIFFICULTY_ORDER = ['easy', 'normal', 'hard', 'hell'];
+const rankOf = id => DIFFICULTY_ORDER.indexOf(id);
+export const difficultyOf = s => gmOf(s).difficulty;
+export const difficultyInfo = s => DIFFICULTY[difficultyOf(s)];
+/** Raising the difficulty is allowed only before the first game of a season (or between seasons). */
+export const canRaiseDifficulty = s => (s.phase === 'regular' && s.day === 0) || (s.phase === 'finished' && !jobLost(s));
+/** Lowest difficulty used for any part of a season. */
+export const lowerDifficulty = (a, b) => rankOf(a) <= rankOf(b) ? a : b;
+export function setDifficulty(s, level, {initial = false} = {}) {
+  if (!DIFFICULTY[level]) return {ok: false, reason: '沒有這個難度。'};
+  const g = gmOf(s), cur = g.difficulty;
+  if (level === cur && !initial) return {ok: true};
+  if (!initial && rankOf(level) > rankOf(cur) && !canRaiseDifficulty(s)) return {ok: false, reason: '球季開打後只能調低難度；調高要等新球季第 1 場之前。'};
+  g.difficulty = level;
+  // Nothing of this season has been played yet: the season counts at the new level.
+  if (initial || (s.phase === 'regular' && s.day === 0)) g.season.low = level;
+  else if (s.phase !== 'finished') g.season.low = lowerDifficulty(g.season.low, level);
+  if (initial) { delete s.board; g.history = []; }
+  // Before the first game of a new career the board simply starts at the new level.
+  else if (s.phase === 'regular' && s.day === 0 && !g.history.length && s.board && !s.board.result) s.board.confidence = DIFFICULTY[level].start;
+  return {ok: true};
+}
+/** Fired and not yet hired elsewhere: the season cannot continue until the GM takes a job. */
+export const jobLost = s => !!(s.board?.result?.fired && !s.board.result.handled);
 export const TITLES = [
   {id: 'rookie', label: '菜鳥 GM', desc: '剛上任的第一個月。', effect: '其他球隊開價略為客氣（交易價碼 −2%）。', markup: .98},
   {id: 'tyrant', label: '暴君', desc: '一季內撤換總教練 2 次以上，或大量釋出球員。', effect: '球員人人自危（氣氛 −4），董事會考核 −4，鄉民好感慢慢下降。', board: -4, drift: -.05, morale: -4},
@@ -139,12 +178,14 @@ function youthShare(s, data) {
 // ======================= Board goals and job security =======================
 const GOAL_LABEL = {
   wins: g => `例行賽拿下 ${g.target} 勝`, playoffs: () => '打進季後賽', champion: () => '拿下總冠軍', payroll: g => `薪資控制在 US$${(g.target / 1e6).toFixed(2)}M 以內`,
-  profit: () => '球季結束時現金不少於開季', attendance: g => `主場平均觀眾 ${g.target.toLocaleString('en-US')} 人以上`, youth: g => `25 歲以下球員累積 ${g.target} 打席＋投球出局數`,
+  profit: () => '球季結束時現金不少於開季', rank: g => `例行賽排名第 ${g.target} 名以內`, attendance: g => `主場平均觀眾 ${g.target.toLocaleString('en-US')} 人以上`, youth: g => `25 歲以下球員累積 ${g.target} 打席＋投球出局數`,
 };
 function makeGoals(s, data) {
   const rep = teamReport(s, data, s.teamId), n = rep.n, rank = rep.strengthRank, games = seasonGames(s), f = s.finance[s.teamId];
   const strategy = rank <= Math.ceil(n / 3) ? 'contender' : rank > n - Math.ceil(n / 3) ? 'rebuilding' : 'middle';
-  const pct = .5 + ((n + 1) / 2 - rank) / n * .22, wins = Math.max(Math.round(games * .35), Math.round(games * pct) - 1);
+  const d = difficultyInfo(s), pct = .5 + ((n + 1) / 2 - rank) / n * .22;
+  // Harder levels expect more wins than the roster projects (easy keeps the old target).
+  const wins = Math.min(Math.round(games * .8), Math.max(Math.round(games * .35), Math.round(games * pct) - 1) + d.winsBonus);
   const h = idHash(s.teamId, `goals|${seasonYear(s)}`), budgetRank = 1 + data.teams.filter(t => s.finance[t.id].budget > f.budget).length;
   const youthTarget = Math.round(games * 20);
   const attendanceGoal = () => {const prev = f.homeGames ? f.attendanceTotal / f.homeGames : homeAttendance(.5 + (pct - .5) * .5, f.ticketPrice); return {type: 'attendance', target: Math.round(prev * 1.02 / 100) * 100};};
@@ -152,6 +193,13 @@ function makeGoals(s, data) {
   if (strategy === 'contender') goals = [{type: 'playoffs', weight: 40}, {type: 'wins', target: wins, weight: 30}, rank === 1 ? {type: 'champion', weight: 30} : {...attendanceGoal(), weight: 30}];
   else if (strategy === 'rebuilding') goals = [{type: 'youth', target: youthTarget, weight: 40}, {type: 'payroll', target: Math.round(f.budget * .85 / 10000) * 10000, weight: 30}, {type: 'wins', target: wins, weight: 30}];
   else goals = [{type: 'wins', target: wins, weight: 40}, h % 2 || budgetRank > n / 2 ? {type: 'profit', target: f.cash, weight: 30} : {...attendanceGoal(), weight: 30}, {type: 'playoffs', weight: 30}];
+  // Hard and hell add goals: finish at or above the projected rank (hell: one better), and money.
+  for (const x of d.extra) {
+    if (x === 'rank') goals.push({type: 'rank', target: Math.max(1, rank - (difficultyOf(s) === 'hell' ? 1 : 0)), weight: 25});
+    if (x === 'money') goals.push(goals.some(g => g.type === 'profit') ? {...attendanceGoal(), weight: 25} : {type: 'profit', target: f.cash, weight: 25});
+  }
+  const total = goals.reduce((a, g) => a + g.weight, 0);
+  if (total !== 100) { goals.forEach(g => { g.weight = Math.round(g.weight * 100 / total); }); goals[0].weight += 100 - goals.reduce((a, g) => a + g.weight, 0); }
   return {goals: goals.map((g, i) => ({...g, id: `${g.type}${i}`})), strategy, expectedRank: rank};
 }
 /** The board for this team and season. Confidence carries over within the same club. */
@@ -159,7 +207,7 @@ export function boardOf(s, data) {
   const prev = s.board;
   if (!prev || prev.year !== seasonYear(s) || prev.teamId !== s.teamId) {
     const same = prev?.teamId === s.teamId;
-    s.board = {year: seasonYear(s), teamId: s.teamId, confidence: same ? prev.confidence : 60, startCash: s.finance[s.teamId].cash, ...makeGoals(s, data), result: null, midNoted: false};
+    s.board = {year: seasonYear(s), teamId: s.teamId, confidence: same ? prev.confidence : difficultyInfo(s).start, startCash: s.finance[s.teamId].cash, ...makeGoals(s, data), result: null, midNoted: false, checks: 0, applied: 0};
   }
   return s.board;
 }
@@ -175,6 +223,7 @@ export function goalProgress(s, data, g) {
     const po = s.playoffs, finalTeams = po?.final ? (po.series[0]?.teams || po.history?.at(-1)?.series[0]?.teams || []) : [], inFinal = finalTeams.includes(s.teamId), champ = s.champion === s.teamId;
     return {label, now: champ ? '奪冠！' : s.phase === 'finished' ? (inFinal ? '總冠軍賽落敗' : '未奪冠') : seeds?.includes(s.teamId) ? '季後賽進行中' : `目前第 ${pos} 名`, score: champ ? 1 : inFinal ? .6 : seeds?.includes(s.teamId) ? .35 : inNow ? .3 : 0, done: s.phase === 'finished'};
   }
+  if (g.type === 'rank') {const order = standings(s).map(([id]) => id), pos = order.indexOf(s.teamId) + 1; return {label, now: `目前第 ${pos} 名`, score: pos <= g.target ? 1 : clamp(1 - (pos - g.target) / Math.max(2, order.length / 4), 0, 1), done};}
   if (g.type === 'payroll') {const pay = payroll(s, data, s.teamId); return {label, now: `目前 US$${(pay / 1e6).toFixed(2)}M`, score: pay <= g.target ? 1 : clamp(1 - (pay - g.target) / g.target * 5, 0, 1), done};}
   if (g.type === 'profit') {const d = f.cash - (s.board?.startCash ?? f.cash); return {label, now: `${d >= 0 ? '+' : '−'}US$${(Math.abs(d) / 1e6).toFixed(2)}M`, score: d >= 0 ? 1 : clamp(1 + d / Math.max(1, s.board.startCash) * 4, 0, 1), done};}
   if (g.type === 'attendance') {const avg = f.homeGames ? Math.round(f.attendanceTotal / f.homeGames) : 0; return {label, now: f.homeGames ? `平均 ${avg.toLocaleString('en-US')} 人` : '尚未有主場比賽', score: f.homeGames ? clamp(avg / g.target, 0, 1.1) : .5, done};}
@@ -183,30 +232,74 @@ export function goalProgress(s, data, g) {
 }
 export function boardStatus(s, data) {
   const b = boardOf(s, data), goals = b.goals.map(g => ({...g, ...goalProgress(s, data, g)}));
-  const grade = Math.round(goals.reduce((a, g) => a + g.weight * Math.min(1, g.score), 0));
-  const mood = b.confidence >= 75 ? '非常信任' : b.confidence >= 55 ? '支持' : b.confidence >= 35 ? '觀望' : b.confidence >= 25 ? '不滿' : '準備換人';
+  // Harder boards give no credit below the floor share of a goal and scale the rest (easy: linear, as before).
+  const floor = difficultyInfo(s).floor, credit = x => floor ? clamp((Math.min(1, x) - floor) / (1 - floor), 0, 1) : Math.min(1, x);
+  const grade = Math.round(goals.reduce((a, g) => a + g.weight * credit(g.score), 0));
+  const fire = difficultyInfo(s).fire;
+  const mood = b.confidence >= 75 ? '非常信任' : b.confidence >= 55 ? '支持' : b.confidence >= Math.max(35, fire + 5) ? '觀望' : b.confidence >= fire ? '不滿' : '準備換人';
   return {board: b, goals, grade, mood};
 }
 function titleBoardMod(s, strategy) {
   return (s.gm?.titles || []).reduce((a, t) => {const d = TITLE[t.id]; if (!d?.board) return a; if (d.boardIf) return a + (strategy === d.boardIf ? d.board : (d.boardElse || 0)); return a + d.board;}, 0);
 }
+/** Facts the GM career profile (career.js) needs about this season with this club. */
+function careerFacts(s, data, b) {
+  const t = s.teams[s.teamId], po = s.playoffs, games = seasonGames(s), jr = b.joinRecord || {w: 0, l: 0};
+  const all = [...(po?.history || []).flatMap(h => h.series), ...(po?.series || [])];
+  const budgets = data.teams.map(x => s.finance[x.id]?.budget || 0), lo = Math.min(...budgets), hi = Math.max(...budgets);
+  const start = b.joinedDay ?? 0, end = s.phase === 'regular' ? s.day : games;
+  return {league: s.league || data.league, w: t.w - jr.w, l: t.l - jr.l, playoffs: !!po?.seeds?.includes(s.teamId), rounds: all.filter(x => seriesWinner(x) === s.teamId).length,
+    budgetPct: hi > lo ? (s.finance[s.teamId].budget - lo) / (hi - lo) : .5, share: clamp((end - start) / games, 0, 1), joined: b.joinedDay != null,
+    titleIds: (gmOf(s).titles || []).map(x => x.id)};
+}
 /** Season review: grade, confidence change, and whether the GM keeps the job. */
 export function reviewSeason(s, data) {
   const st = boardStatus(s, data), b = st.board;
   if (b.result) return b.result;
-  const fans = (s.fans?.sentiment ?? 50) - 50, mods = titleBoardMod(s, b.strategy);
-  const delta = Math.round((st.grade - 60) * .6 + fans * .15 + mods);
+  const d = difficultyInfo(s);
+  // Mid-season reviews already used part of the season's weight.
+  const delta = confidenceDelta(s, st, b, 1 - (b.applied || 0));
   b.confidence = clamp(b.confidence + delta, 0, 100);
-  const fired = b.confidence < 25;
+  // A GM hired during the season is not fired at its end.
+  const fired = b.confidence < d.fire && b.joinedDay == null;
   const g = gmOf(s), t = s.teams[s.teamId];
   g.career.seasons++; if (s.champion === s.teamId) g.career.champions++; if (fired) g.career.fired++;
   for (const k of Object.keys(blankCounters())) g.career[k] = (g.career[k] || 0) + (g.season[k] || 0);
-  g.history.unshift({year: seasonYear(s), teamId: s.teamId, team: club(data, s.teamId).zh, w: t.w, l: t.l, grade: st.grade, confidence: b.confidence, champion: s.champion === s.teamId, fired, titles: (g.titles || []).map(x => TITLE[x.id]?.label).filter(Boolean)});
+  g.history.unshift({year: seasonYear(s), teamId: s.teamId, team: club(data, s.teamId).zh, w: t.w, l: t.l, grade: st.grade, confidence: b.confidence, champion: s.champion === s.teamId, fired, difficulty: g.season.low, titles: (g.titles || []).map(x => TITLE[x.id]?.label).filter(Boolean), ...careerFacts(s, data, b)});
   b.result = {grade: st.grade, delta, fired, confidence: b.confidence, handled: !fired};
   refreshTitles(s, data);
   addNews(s, {category: 'decision', teamIds: [s.teamId], title: fired ? '董事會決定解除 GM 職務' : `董事會年度考核：${st.grade} 分`, text: fired ? `本季目標達成度 ${st.grade} 分，董事會信任度跌到 ${b.confidence}。球團決定換人。` : `目標達成度 ${st.grade} 分，董事會信任度 ${delta >= 0 ? '+' : ''}${delta}，目前 ${b.confidence}（${st.mood}）。`});
   fanReact(s, data, fired ? 'fired' : st.grade >= 80 ? 'reviewGood' : st.grade < 45 ? 'reviewBad' : 'reviewOk', {grade: st.grade}, 0);
   return b.result;
+}
+/** Confidence change for a review covering `weight` of the season; losses scale with difficulty. */
+function confidenceDelta(s, st, b, weight) {
+  const fans = (s.fans?.sentiment ?? 50) - 50, mods = titleBoardMod(s, b.strategy);
+  const raw = ((st.grade - 60) * .6 + fans * .15 + mods) * weight;
+  return Math.round(raw < 0 ? raw * difficultyInfo(s).penalty : raw);
+}
+/** Hard and hell: the board reviews during the regular season and may fire the GM on the spot. */
+export function midSeasonReview(s, data) {
+  const d = difficultyInfo(s), b = boardOf(s, data);
+  if (s.phase !== 'regular' || b.result || b.joinedDay != null) return null;
+  const games = seasonGames(s), due = d.checks.filter(x => s.day >= Math.floor(games * x)).length;
+  if (due <= (b.checks || 0)) return null;
+  const share = d.checks[due - 1] - (d.checks[(b.checks || 0) - 1] || 0);
+  b.checks = due; b.applied = (b.applied || 0) + share;
+  const st = boardStatus(s, data), delta = confidenceDelta(s, st, b, share);
+  b.confidence = clamp(b.confidence + delta, 0, 100);
+  const fired = b.confidence < d.midFire;
+  if (fired) {
+    const g = gmOf(s), t = s.teams[s.teamId];
+    g.career.fired++;
+    g.history.unshift({year: seasonYear(s), teamId: s.teamId, team: club(data, s.teamId).zh, w: t.w, l: t.l, grade: st.grade, confidence: b.confidence, champion: false, fired: true, midseason: true, difficulty: g.season.low, titles: (g.titles || []).map(x => TITLE[x.id]?.label).filter(Boolean), ...careerFacts(s, data, b), day: s.day});
+    b.result = {grade: st.grade, delta, fired: true, midseason: true, confidence: b.confidence, handled: false, day: s.day};
+    addNews(s, {category: 'decision', teamIds: [s.teamId], title: '董事會季中解除 GM 職務', text: `季中考核 ${st.grade} 分，董事會信任度跌到 ${b.confidence}（${d.label}難度：低於 ${d.midFire} 當場解職）。球團決定立刻換人。`});
+    fanReact(s, data, 'fired', {grade: st.grade}, 0);
+  } else {
+    addNews(s, {category: 'decision', teamIds: [s.teamId], title: `董事會季中考核：${st.grade} 分`, text: `信任度 ${delta >= 0 ? '+' : ''}${delta}，目前 ${b.confidence}（${st.mood}）。${d.label}難度：季中低於 ${d.midFire} 會當場解職。`});
+  }
+  return {grade: st.grade, delta, fired, confidence: b.confidence};
 }
 /** Clubs that would hire a fired GM: the weaker half of the league. */
 export function jobOffers(s, data) {
@@ -216,13 +309,16 @@ export function jobOffers(s, data) {
 /** Move the GM to a new club in the same league (world save). Staff stays with the old club except the assistant. */
 export function takeJob(w, s, data, teamId) {
   if (!jobOffers(s, data).some(o => o.id === teamId)) throw new Error('這支球隊沒有提出邀請。');
-  const oldTeam = s.teamId;
+  const oldTeam = s.teamId, midseason = s.phase !== 'finished';
   w.teamId = teamId; s.teamId = teamId; s.manualLineup = false; s.manager = null;
   s.board.result.handled = true;
-  s.board = {year: seasonYear(s), teamId, confidence: 55, startCash: s.finance[teamId].cash, ...makeGoals(s, data), result: {handled: true, grade: null, newJob: true}, midNoted: true};
+  // Easy keeps the old 55; harder levels start a new job lower. A mid-season hire is reviewed at
+  // season's end (but not fired); an off-season hire starts fresh next season.
+  const confidence = difficultyOf(s) === 'easy' ? 55 : difficultyInfo(s).start - 5;
+  s.board = {year: seasonYear(s), teamId, confidence, startCash: s.finance[teamId].cash, ...makeGoals(s, data), result: midseason ? null : {handled: true, grade: null, newJob: true}, midNoted: true, ...(midseason ? {joinedDay: s.day, joinRecord: {w: s.teams[teamId].w, l: s.teams[teamId].l}, checks: 0, applied: 0} : {})};
   s.fans = {sentiment: 50, posts: [], seq: s.fans?.seq || 0};
   if (s.gm) s.gm.titles = (s.gm.titles || []).filter(t => t.id === 'champion');
-  addNews(s, {category: 'decision', teamIds: [teamId, oldTeam], title: `新東家：接任${club(data, teamId).zh} GM`, text: `離開${club(data, oldTeam).zh}後，${club(data, teamId).zh} 邀請你接掌球團。新的董事會目標會在下個球季公布。`});
+  addNews(s, {category: 'decision', teamIds: [teamId, oldTeam], title: `新東家：接任${club(data, teamId).zh} GM`, text: `離開${club(data, oldTeam).zh}後，${club(data, teamId).zh} 邀請你接掌球團。${midseason ? '剩下的球季先熟悉球隊，季末考核不會解職。' : '新的董事會目標會在下個球季公布。'}`});
   fanReact(s, data, 'newGM', {}, 0);
   return s;
 }
@@ -301,8 +397,10 @@ function daily(s, data, results) {
   const b = s.board;
   if (s.phase === 'regular' && !b.midNoted && s.day >= Math.floor(seasonGames(s) / 2)) {
     b.midNoted = true; const st = boardStatus(s, data);
-    addNews(s, {category: 'decision', teamIds: [s.teamId], title: `董事會期中評估：目前 ${st.grade} 分`, text: `${st.goals.map(x => `${x.label}：${x.now}`).join('；')}。董事會態度：${st.mood}。`});
+    // Hard and hell hold a real review at this point instead (midSeasonReview).
+    if (!difficultyInfo(s).checks.length) addNews(s, {category: 'decision', teamIds: [s.teamId], title: `董事會期中評估：目前 ${st.grade} 分`, text: `${st.goals.map(x => `${x.label}：${x.now}`).join('；')}。董事會態度：${st.mood}。`});
   }
+  if (midSeasonReview(s, data)?.fired) return;
   refreshTitles(s, data);
   if (s.phase === 'finished') { if (s.champion === s.teamId) fanReact(s, data, 'champion', {}, 15); reviewSeason(s, data); }
 }
