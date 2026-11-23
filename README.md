@@ -11,7 +11,7 @@
 ## 開發與部署
 
 - Node.js 24，無外部前端相依套件。
-- 執行 `npm test`：142 項測試。
+- 執行 `npm test`：150 項測試。
 - 本機啟動：`python -m http.server 8000 --directory dist`，開啟 `http://localhost:8000`。
 - 網站目錄：`dist/`，不要直接發布儲存庫根目錄。
 - GitHub Pages 的 Source 選 GitHub Actions；推送到 main 後先測試再發布 dist，PR 只測試。
@@ -37,7 +37,9 @@
 
 ## 存檔
 
-目前進度存在各網站來源的瀏覽器 localStorage（dugout.save.v1），格式 v5，相容 v1–v4。新網址不會自動取得舊網址存檔，也尚未提供跨裝置雲端同步。原網站會保留；請勿清除原網站資料。存檔移轉將另行實作。
+自 v3.3 起，世界存檔（dugout.world.v1）以 gzip 壓縮存在瀏覽器的 IndexedDB（資料庫 dugout、物件倉 saves），不再受 localStorage 約 5MB 的上限限制；舊的 localStorage 存檔會在開啟時自動搬移，確認讀回一致才刪除舊的一份。瀏覽器不支援 IndexedDB 時退回 localStorage。「存檔與設定」可匯出／匯入 JSON 存檔檔案，作為備份或換裝置的方式。
+
+新網址不會自動取得舊網址存檔，也尚未提供跨裝置雲端同步。原網站會保留；請勿清除原網站資料。
 
 球員能力、合約、賽程、未來退役與事件均為遊戲設定，不是真實新聞或官方預測。遊戲不會捏造真實球員的犯罪劇情；場外事件只有門禁、遲到、失言等輕微情節。鄉民、球評、總教練與助理都是虛構角色。
 

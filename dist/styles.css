@@ -371,3 +371,9 @@ html[data-theme=dark]{--art-board:#0a2a20;--art-dim:#2f5a49}
 .pdb-pay .expiring{color:var(--amber);font-weight:700}
 .tag.locked{background:var(--red);color:#fff}
 .pdb-table .btn.small{white-space:nowrap}
+/* v3.3 save storage */
+.save-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.save-buttons .btn{flex:1 1 auto}
+.picker-bottom .import-btn{width:100%;margin:0 0 10px}
+.picker-bottom p.load-problem{font-size:12px;line-height:1.5;color:var(--red);background:rgba(163,38,56,.08);border:1px solid rgba(163,38,56,.35);border-radius:10px;padding:10px 12px;display:flex;gap:8px;align-items:flex-start}
+html[data-theme=dark] .picker-bottom p.load-problem{color:#ff9aa8}

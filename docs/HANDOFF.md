@@ -110,3 +110,13 @@
 - 美職季後賽最多 22 天（舊制 8 天），整季約 94–103 天。
 - app.js：teamTables 依 standingGroups 分表；playoffPanel 顯示目前與歷史輪次；userOnBye 處理第 1、2 種子輪空時的首頁文字。
 - 球員庫：pdbRows 每列加上 war、plus（OPS+／ERA+，打席 20、局數 10 以上才排序）、pot（只有自己聯盟）、salary、years、strategy、locked（untouchables）、tradable。pdbDeal 篩選只列自己聯盟。pdb-trade 動作把 tradeDraft 設為 {targetTeam, get:[id]} 並切到辦公室交易頁。
+
+## v3.3 存檔改用 IndexedDB
+
+- dist/storage.js：createSaveStore({key,idb,local})。load() 回傳 {text,where:'idb'|'local',savedAt,size,raw,format,migrated} 或 null；save(text) 合併寫入（寫入中再呼叫只會在結束後寫最新一份），回傳 {ok,where,size,...}。idb／local 後端可注入，tests/storage-v33.test.js 用記憶體假後端。
+- IndexedDB 紀錄：{v:1,format:'gzip'|'json',data,savedAt,raw,size}。沒有 CompressionStream 時存未壓縮 JSON。
+- 搬移：localStorage 有存檔時寫入 IndexedDB、讀回比對字串完全相同後才刪 localStorage；失敗就繼續用 localStorage。兩邊都有時比較 savedAt（app 的 saveText() 每次存檔寫入 world.savedAt；舊存檔沒有 savedAt 視為最舊）。
+- 解不開的 IndexedDB 紀錄丟 SaveReadError，並另存一份到 `dugout.world.v1.unreadable`（已有就不覆蓋）；IndexedDB 存在卻無法開啟、localStorage 也沒有存檔時同樣報錯。app 在選隊畫面顯示 .load-problem。
+- app.js：save() 同步產生 JSON、排入非同步寫入，結果由 saveDone 更新 saveError／saveInfo；需要失敗回復的地方（installSeason、進入休賽季）用 await saveNow()。installSeason 改為 async，回傳 Promise<boolean>。有未完成寫入時 beforeunload 會提示。
+- openSave(parsed)：舊名單補 playerPool 後 restoreWorld；讀檔與匯入共用。匯出檔就是 packWorld 的 JSON。
+- 存檔大小（中職、seed 7）：新開季 401KB → gzip 53KB；季末約 2.6MB 字元（localStorage 以 UTF-16 計約 5.2MB，即原本無法儲存的原因）→ gzip 約 340KB；休賽季後約 1.4MB → 185KB。v3.0 的照片只在 dist/img/，不進存檔。

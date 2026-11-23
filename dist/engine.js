@@ -1,7 +1,7 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=33';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=34';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
-import {formatFor,startPlayoffs,advancePlayoffs,seriesDone,seriesGame,migratePlayoffs,playoffPicture} from './postseason.js?v=33';
+import {formatFor,startPlayoffs,advancePlayoffs,seriesDone,seriesGame,migratePlayoffs,playoffPicture} from './postseason.js?v=34';
 export const VERSION=5;
 export const SEASON_GAMES=81;
 // v2.7: more stories, shown less often (was .40).
