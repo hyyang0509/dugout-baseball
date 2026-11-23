@@ -11,7 +11,7 @@
 ## 開發與部署
 
 - Node.js 24，無外部前端相依套件。
-- 執行 `npm test`：157 項測試。
+- 執行 `npm test`：163 項測試。
 - 本機啟動：`python -m http.server 8000 --directory dist`，開啟 `http://localhost:8000`。
 - 網站目錄：`dist/`，不要直接發布儲存庫根目錄。
 - GitHub Pages 的 Source 選 GitHub Actions；推送到 main 後先測試再發布 dist，PR 只測試。
@@ -38,6 +38,8 @@
 ## 存檔
 
 自 v3.3 起，世界存檔（dugout.world.v1）以 gzip 壓縮存在瀏覽器的 IndexedDB（資料庫 dugout、物件倉 saves），不再受 localStorage 約 5MB 的上限限制；舊的 localStorage 存檔會在開啟時自動搬移，確認讀回一致才刪除舊的一份。瀏覽器不支援 IndexedDB 時退回 localStorage。「存檔與設定」可匯出／匯入 JSON 存檔檔案，作為備份或換裝置的方式。
+
+v3.5 起，GM 生涯（名人堂）另外存在 IndexedDB 的 dugout.gm.v1，不屬於世界存檔，重新開始遊戲不會清掉；可在名人堂或「存檔與設定」匯出／匯入 GM 生涯檔。GM 年薪與獎金是遊戲設定，不是真實薪資。
 
 新網址不會自動取得舊網址存檔，也尚未提供跨裝置雲端同步。原網站會保留；請勿清除原網站資料。
 

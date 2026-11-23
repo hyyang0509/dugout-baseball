@@ -1,8 +1,9 @@
 // DUGOUT GM layer: the field manager, board goals and job security, GM reputation titles, and fan / pundit buzz.
 // It hooks into the engine (HOOKS) so a season keeps running even if this module is not loaded (tests, AI leagues).
 import {HOOKS, rosterFor, hasBat, hasPitch, ovr, potential, playerAge, payroll, teamStrategy, standings, seasonGames, idHash,
-  moneyScale, clamp, addNews, homeAttendance, normOffer, tradeDeadline, salaryOf, optimizeLineup, currentPicture} from './engine.js?v=35';
-import {teamReport, tradeImpact} from './gm.js?v=35';
+  moneyScale, clamp, addNews, homeAttendance, normOffer, tradeDeadline, salaryOf, optimizeLineup, currentPicture} from './engine.js?v=36';
+import {teamReport, tradeImpact} from './gm.js?v=36';
+import {seriesWinner} from './postseason.js?v=36';
 
 const club = (data, id) => data.teams.find(t => t.id === id);
 const seasonYear = s => s.year || 2026;
@@ -241,6 +242,16 @@ export function boardStatus(s, data) {
 function titleBoardMod(s, strategy) {
   return (s.gm?.titles || []).reduce((a, t) => {const d = TITLE[t.id]; if (!d?.board) return a; if (d.boardIf) return a + (strategy === d.boardIf ? d.board : (d.boardElse || 0)); return a + d.board;}, 0);
 }
+/** Facts the GM career profile (career.js) needs about this season with this club. */
+function careerFacts(s, data, b) {
+  const t = s.teams[s.teamId], po = s.playoffs, games = seasonGames(s), jr = b.joinRecord || {w: 0, l: 0};
+  const all = [...(po?.history || []).flatMap(h => h.series), ...(po?.series || [])];
+  const budgets = data.teams.map(x => s.finance[x.id]?.budget || 0), lo = Math.min(...budgets), hi = Math.max(...budgets);
+  const start = b.joinedDay ?? 0, end = s.phase === 'regular' ? s.day : games;
+  return {league: s.league || data.league, w: t.w - jr.w, l: t.l - jr.l, playoffs: !!po?.seeds?.includes(s.teamId), rounds: all.filter(x => seriesWinner(x) === s.teamId).length,
+    budgetPct: hi > lo ? (s.finance[s.teamId].budget - lo) / (hi - lo) : .5, share: clamp((end - start) / games, 0, 1), joined: b.joinedDay != null,
+    titleIds: (gmOf(s).titles || []).map(x => x.id)};
+}
 /** Season review: grade, confidence change, and whether the GM keeps the job. */
 export function reviewSeason(s, data) {
   const st = boardStatus(s, data), b = st.board;
@@ -254,7 +265,7 @@ export function reviewSeason(s, data) {
   const g = gmOf(s), t = s.teams[s.teamId];
   g.career.seasons++; if (s.champion === s.teamId) g.career.champions++; if (fired) g.career.fired++;
   for (const k of Object.keys(blankCounters())) g.career[k] = (g.career[k] || 0) + (g.season[k] || 0);
-  g.history.unshift({year: seasonYear(s), teamId: s.teamId, team: club(data, s.teamId).zh, w: t.w, l: t.l, grade: st.grade, confidence: b.confidence, champion: s.champion === s.teamId, fired, difficulty: g.season.low, titles: (g.titles || []).map(x => TITLE[x.id]?.label).filter(Boolean)});
+  g.history.unshift({year: seasonYear(s), teamId: s.teamId, team: club(data, s.teamId).zh, w: t.w, l: t.l, grade: st.grade, confidence: b.confidence, champion: s.champion === s.teamId, fired, difficulty: g.season.low, titles: (g.titles || []).map(x => TITLE[x.id]?.label).filter(Boolean), ...careerFacts(s, data, b)});
   b.result = {grade: st.grade, delta, fired, confidence: b.confidence, handled: !fired};
   refreshTitles(s, data);
   addNews(s, {category: 'decision', teamIds: [s.teamId], title: fired ? '董事會決定解除 GM 職務' : `董事會年度考核：${st.grade} 分`, text: fired ? `本季目標達成度 ${st.grade} 分，董事會信任度跌到 ${b.confidence}。球團決定換人。` : `目標達成度 ${st.grade} 分，董事會信任度 ${delta >= 0 ? '+' : ''}${delta}，目前 ${b.confidence}（${st.mood}）。`});
@@ -281,7 +292,7 @@ export function midSeasonReview(s, data) {
   if (fired) {
     const g = gmOf(s), t = s.teams[s.teamId];
     g.career.fired++;
-    g.history.unshift({year: seasonYear(s), teamId: s.teamId, team: club(data, s.teamId).zh, w: t.w, l: t.l, grade: st.grade, confidence: b.confidence, champion: false, fired: true, midseason: true, difficulty: g.season.low, titles: (g.titles || []).map(x => TITLE[x.id]?.label).filter(Boolean)});
+    g.history.unshift({year: seasonYear(s), teamId: s.teamId, team: club(data, s.teamId).zh, w: t.w, l: t.l, grade: st.grade, confidence: b.confidence, champion: false, fired: true, midseason: true, difficulty: g.season.low, titles: (g.titles || []).map(x => TITLE[x.id]?.label).filter(Boolean), ...careerFacts(s, data, b), day: s.day});
     b.result = {grade: st.grade, delta, fired: true, midseason: true, confidence: b.confidence, handled: false, day: s.day};
     addNews(s, {category: 'decision', teamIds: [s.teamId], title: '董事會季中解除 GM 職務', text: `季中考核 ${st.grade} 分，董事會信任度跌到 ${b.confidence}（${d.label}難度：低於 ${d.midFire} 當場解職）。球團決定立刻換人。`});
     fanReact(s, data, 'fired', {grade: st.grade}, 0);
@@ -304,7 +315,7 @@ export function takeJob(w, s, data, teamId) {
   // Easy keeps the old 55; harder levels start a new job lower. A mid-season hire is reviewed at
   // season's end (but not fired); an off-season hire starts fresh next season.
   const confidence = difficultyOf(s) === 'easy' ? 55 : difficultyInfo(s).start - 5;
-  s.board = {year: seasonYear(s), teamId, confidence, startCash: s.finance[teamId].cash, ...makeGoals(s, data), result: midseason ? null : {handled: true, grade: null, newJob: true}, midNoted: true, ...(midseason ? {joinedDay: s.day, checks: 0, applied: 0} : {})};
+  s.board = {year: seasonYear(s), teamId, confidence, startCash: s.finance[teamId].cash, ...makeGoals(s, data), result: midseason ? null : {handled: true, grade: null, newJob: true}, midNoted: true, ...(midseason ? {joinedDay: s.day, joinRecord: {w: s.teams[teamId].w, l: s.teams[teamId].l}, checks: 0, applied: 0} : {})};
   s.fans = {sentiment: 50, posts: [], seq: s.fans?.seq || 0};
   if (s.gm) s.gm.titles = (s.gm.titles || []).filter(t => t.id === 'champion');
   addNews(s, {category: 'decision', teamIds: [teamId, oldTeam], title: `新東家：接任${club(data, teamId).zh} GM`, text: `離開${club(data, oldTeam).zh}後，${club(data, teamId).zh} 邀請你接掌球團。${midseason ? '剩下的球季先熟悉球隊，季末考核不會解職。' : '新的董事會目標會在下個球季公布。'}`});

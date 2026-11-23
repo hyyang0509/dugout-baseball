@@ -391,3 +391,33 @@ html[data-theme=dark] .difficulty-option.selected{border-color:#c8b06f;box-shado
 .difficulty-switch .tabs{margin:6px 0}
 .difficulty-switch button:disabled{opacity:.4;cursor:not-allowed}
 @media (max-width:420px){.difficulty-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* v3.5 GM career */
+.gm-identity{display:grid;gap:8px;margin:4px 0 12px}
+.gm-field{display:grid;gap:4px}
+.gm-field input,.gm-field select{width:100%;font:inherit;font-size:14px;padding:9px 10px;border-radius:7px;border:1px solid #e4dcc4;background:#fffdf6;color:inherit}
+html[data-theme=dark] .gm-field input,html[data-theme=dark] .gm-field select{background:rgba(255,255,255,.05);border-color:#32453e}
+.picker-bottom .gm-identity p{font-size:11px;margin:0}
+.hall-table tr.own td{font-weight:600}
+.hall-detail{margin-top:18px;border-top:1px solid var(--line);padding-top:16px}
+.hall-detail h4{margin:20px 0 8px;font-size:14px}
+.hall-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.hall-head h3{margin:2px 0;font-size:24px}
+.hall-rep{min-width:180px;display:grid;gap:2px}
+.hall-rep strong{font-size:30px;line-height:1}
+.hall-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px}
+.hall-stats>div{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:2px}
+.hall-stats span,.hall-stats small{font-size:11px;opacity:.75}
+.hall-stats strong{font-size:18px}
+.hall-timeline{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.hall-timeline li{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;border-left:3px solid var(--line);padding:4px 0 4px 10px}
+.hall-timeline small{opacity:.75}
+.hall-league{font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid currentColor}
+.hall-achievements{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.hall-achievements>div{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:grid;gap:2px}
+.hall-achievements .locked{opacity:.5}
+.hall-achievements small{font-size:11px}
+.hall-titles{margin:0 0 8px}
+.hall-note{margin-top:16px}
+.hall-buttons{margin-top:10px}
+.hall .load-problem{color:var(--red)}
+.hall-panel .hall-detail,.hall-panel .hall-note,.hall-panel .hall-buttons,.hall-panel>.hall>.empty,.hall-panel .load-problem{margin-inline:20px}.hall-panel .hall-buttons{margin-bottom:20px}.hall-panel .hall-detail{padding-top:18px}
