@@ -120,3 +120,12 @@
 - app.js：save() 同步產生 JSON、排入非同步寫入，結果由 saveDone 更新 saveError／saveInfo；需要失敗回復的地方（installSeason、進入休賽季）用 await saveNow()。installSeason 改為 async，回傳 Promise<boolean>。有未完成寫入時 beforeunload 會提示。
 - openSave(parsed)：舊名單補 playerPool 後 restoreWorld；讀檔與匯入共用。匯出檔就是 packWorld 的 JSON。
 - 存檔大小（中職、seed 7）：新開季 401KB → gzip 53KB；季末約 2.6MB 字元（localStorage 以 UTF-16 計約 5.2MB，即原本無法儲存的原因）→ gzip 約 340KB；休賽季後約 1.4MB → 185KB。v3.0 的照片只在 dist/img/，不進存檔。
+
+## v3.4 董事會難度
+
+- front.js：DIFFICULTY（easy／normal／hard／hell：start、fire、penalty、checks、midFire）、DIFFICULTY_ORDER。難度存在 s.gm.difficulty（advanceSeason 帶 gm 到下一季）；沒有這個欄位的舊存檔由 gmOf 補成 easy，等於 v3.3 以前的規則。
+- s.gm.season.low：本季玩過的最低難度。setDifficulty(s,level,{initial}) 調低隨時可以；調高只在 canRaiseDifficulty（例行賽第 0 天，或球季結束且沒有待處理的解職）。第 0 天改難度時本季直接算新難度；生涯第一季第 0 天改難度時，信任度也改成新難度的起始值。reviewSeason／季中解職寫入 g.history 的 difficulty 是 season.low。
+- 新遊戲：app 在 makeWorld 後呼叫 setDifficulty(userSeason(w),level,{initial:true})（刪掉 s.board，讓 boardOf 以 start 建立）。原隊重玩沿用目前難度。
+- confidenceDelta：(考核−60)×.6＋輿情×.15＋稱號，乘上這次考核涵蓋的球季比例；負值再乘 penalty。季中考核（midSeasonReview，daily hook 在 midNoted 之後呼叫）依 checks（困難 [.5]、地獄 [.25,.5,.75]）各用掉一部分比例（b.applied），季末只用剩下的比例，一季總權重仍是 1。困難、地獄不再發「期中評估」新聞，改發季中考核新聞。
+- 季中解職：b.result={fired:true,midseason:true,handled:false,day}。jobLost(s) 為真時 app 的 simulate 不推進、模擬按鈕停用，首頁顯示 firedSection。takeJob 在季中：新董事會 result=null、joinedDay=s.day，季末照常考核但不會解職，也不做季中考核。新工作起始信任度：easy 55（舊規則），其他為該難度 start−5。
+- 平衡參考（韓職 10 隊 × 2 種子、GM 不操作、第一季）：輕鬆、標準、困難 0/20 被解職；地獄 2/20（季末）。

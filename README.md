@@ -11,7 +11,7 @@
 ## 開發與部署
 
 - Node.js 24，無外部前端相依套件。
-- 執行 `npm test`：150 項測試。
+- 執行 `npm test`：156 項測試。
 - 本機啟動：`python -m http.server 8000 --directory dist`，開啟 `http://localhost:8000`。
 - 網站目錄：`dist/`，不要直接發布儲存庫根目錄。
 - GitHub Pages 的 Source 選 GitHub Actions；推送到 main 後先測試再發布 dist，PR 只測試。

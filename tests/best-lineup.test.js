@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {makeSeason,nextDay,rosterFor,teamOf,positionsOf,hasBat,hasPitch} from '../dist/engine.js?v=34';
+import {makeSeason,nextDay,rosterFor,teamOf,positionsOf,hasBat,hasPitch} from '../dist/engine.js?v=35';
 import {bestLineup,DEPTH_SPOTS,spotValue} from '../dist/gm.js';
 import {defenseDiagram,shortName} from '../dist/art.js';
 const data=JSON.parse(fs.readFileSync(new URL('../dist/data/roster_mlb.json',import.meta.url)));

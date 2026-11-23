@@ -377,3 +377,17 @@ html[data-theme=dark]{--art-board:#0a2a20;--art-dim:#2f5a49}
 .picker-bottom .import-btn{width:100%;margin:0 0 10px}
 .picker-bottom p.load-problem{font-size:12px;line-height:1.5;color:var(--red);background:rgba(163,38,56,.08);border:1px solid rgba(163,38,56,.35);border-radius:10px;padding:10px 12px;display:flex;gap:8px;align-items:flex-start}
 html[data-theme=dark] .picker-bottom p.load-problem{color:#ff9aa8}
+/* v3.4 board difficulty */
+.difficulty-picker{margin:4px 0 14px}
+.difficulty-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:6px 0}
+.difficulty-option{display:flex;flex-direction:column;gap:2px;align-items:flex-start;border:1px solid #e4dcc4;background:#fbf6e9;border-radius:7px;padding:8px 9px;text-align:left;color:inherit;font:inherit;cursor:pointer;min-width:0}
+.difficulty-option strong{font-size:13px}
+.difficulty-option small{font-size:10px;opacity:.75}
+.difficulty-option.selected{border-color:#658e45;box-shadow:0 0 0 1px #658e45}
+html[data-theme=dark] .difficulty-option{background:rgba(255,255,255,.04);border-color:#32453e}
+html[data-theme=dark] .difficulty-option.selected{border-color:#c8b06f;box-shadow:0 0 0 1px #c8b06f}
+.picker-bottom .difficulty-picker p{font-size:11px;margin:4px 0 0}
+.difficulty-switch{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+.difficulty-switch .tabs{margin:6px 0}
+.difficulty-switch button:disabled{opacity:.4;cursor:not-allowed}
+@media (max-width:420px){.difficulty-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
