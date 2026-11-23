@@ -82,10 +82,10 @@ export function gmOf(s) {
 // losses; checks: share of the regular season at which the board reviews mid-season, with
 // midFire the threshold for firing on the spot.
 export const DIFFICULTY = {
-  easy: {label: '輕鬆', start: 60, fire: 25, penalty: 1, checks: [], midFire: null, desc: '原本的規則：季末信任度低於 25 才會被解職。'},
-  normal: {label: '標準', start: 55, fire: 30, penalty: 1.3, checks: [], midFire: null, desc: '起始信任度 55，季末低於 30 解職，扣分 ×1.3。'},
-  hard: {label: '困難', start: 45, fire: 32, penalty: 1.6, checks: [.5], midFire: 20, desc: '起始 45，季末低於 32 解職，扣分 ×1.6；球季過半先考核一次，跌破 20 當場解職。'},
-  hell: {label: '地獄', start: 42, fire: 35, penalty: 2, checks: [.25, .5, .75], midFire: 25, desc: '起始 42，季末低於 35 解職，扣分 ×2；季中每四分之一考核一次，跌破 25 當場解職。'},
+  easy: {label: '輕鬆', start: 60, fire: 25, penalty: 1, checks: [], midFire: null, winsBonus: 0, floor: 0, extra: [], desc: '原本的規則：季末信任度低於 25 才會被解職。'},
+  normal: {label: '標準', start: 55, fire: 30, penalty: 1.3, checks: [], midFire: null, winsBonus: 2, floor: .5, extra: [], desc: '起始信任度 55，季末低於 30 解職，扣分 ×1.3。'},
+  hard: {label: '困難', start: 45, fire: 32, penalty: 1.6, checks: [.5], midFire: 20, winsBonus: 4, floor: .6, extra: ['rank'], desc: '起始 45，季末低於 32 解職，扣分 ×1.6；球季過半先考核一次，跌破 20 當場解職。'},
+  hell: {label: '地獄', start: 42, fire: 35, penalty: 2, checks: [.25, .5, .75], midFire: 25, winsBonus: 6, floor: .7, extra: ['rank', 'money'], desc: '起始 42，季末低於 35 解職，扣分 ×2；季中每四分之一考核一次，跌破 25 當場解職。'},
 };
 export const DIFFICULTY_ORDER = ['easy', 'normal', 'hard', 'hell'];
 const rankOf = id => DIFFICULTY_ORDER.indexOf(id);
@@ -177,12 +177,14 @@ function youthShare(s, data) {
 // ======================= Board goals and job security =======================
 const GOAL_LABEL = {
   wins: g => `例行賽拿下 ${g.target} 勝`, playoffs: () => '打進季後賽', champion: () => '拿下總冠軍', payroll: g => `薪資控制在 US$${(g.target / 1e6).toFixed(2)}M 以內`,
-  profit: () => '球季結束時現金不少於開季', attendance: g => `主場平均觀眾 ${g.target.toLocaleString('en-US')} 人以上`, youth: g => `25 歲以下球員累積 ${g.target} 打席＋投球出局數`,
+  profit: () => '球季結束時現金不少於開季', rank: g => `例行賽排名第 ${g.target} 名以內`, attendance: g => `主場平均觀眾 ${g.target.toLocaleString('en-US')} 人以上`, youth: g => `25 歲以下球員累積 ${g.target} 打席＋投球出局數`,
 };
 function makeGoals(s, data) {
   const rep = teamReport(s, data, s.teamId), n = rep.n, rank = rep.strengthRank, games = seasonGames(s), f = s.finance[s.teamId];
   const strategy = rank <= Math.ceil(n / 3) ? 'contender' : rank > n - Math.ceil(n / 3) ? 'rebuilding' : 'middle';
-  const pct = .5 + ((n + 1) / 2 - rank) / n * .22, wins = Math.max(Math.round(games * .35), Math.round(games * pct) - 1);
+  const d = difficultyInfo(s), pct = .5 + ((n + 1) / 2 - rank) / n * .22;
+  // Harder levels expect more wins than the roster projects (easy keeps the old target).
+  const wins = Math.min(Math.round(games * .8), Math.max(Math.round(games * .35), Math.round(games * pct) - 1) + d.winsBonus);
   const h = idHash(s.teamId, `goals|${seasonYear(s)}`), budgetRank = 1 + data.teams.filter(t => s.finance[t.id].budget > f.budget).length;
   const youthTarget = Math.round(games * 20);
   const attendanceGoal = () => {const prev = f.homeGames ? f.attendanceTotal / f.homeGames : homeAttendance(.5 + (pct - .5) * .5, f.ticketPrice); return {type: 'attendance', target: Math.round(prev * 1.02 / 100) * 100};};
@@ -190,6 +192,13 @@ function makeGoals(s, data) {
   if (strategy === 'contender') goals = [{type: 'playoffs', weight: 40}, {type: 'wins', target: wins, weight: 30}, rank === 1 ? {type: 'champion', weight: 30} : {...attendanceGoal(), weight: 30}];
   else if (strategy === 'rebuilding') goals = [{type: 'youth', target: youthTarget, weight: 40}, {type: 'payroll', target: Math.round(f.budget * .85 / 10000) * 10000, weight: 30}, {type: 'wins', target: wins, weight: 30}];
   else goals = [{type: 'wins', target: wins, weight: 40}, h % 2 || budgetRank > n / 2 ? {type: 'profit', target: f.cash, weight: 30} : {...attendanceGoal(), weight: 30}, {type: 'playoffs', weight: 30}];
+  // Hard and hell add goals: finish at or above the projected rank (hell: one better), and money.
+  for (const x of d.extra) {
+    if (x === 'rank') goals.push({type: 'rank', target: Math.max(1, rank - (difficultyOf(s) === 'hell' ? 1 : 0)), weight: 25});
+    if (x === 'money') goals.push(goals.some(g => g.type === 'profit') ? {...attendanceGoal(), weight: 25} : {type: 'profit', target: f.cash, weight: 25});
+  }
+  const total = goals.reduce((a, g) => a + g.weight, 0);
+  if (total !== 100) { goals.forEach(g => { g.weight = Math.round(g.weight * 100 / total); }); goals[0].weight += 100 - goals.reduce((a, g) => a + g.weight, 0); }
   return {goals: goals.map((g, i) => ({...g, id: `${g.type}${i}`})), strategy, expectedRank: rank};
 }
 /** The board for this team and season. Confidence carries over within the same club. */
@@ -213,6 +222,7 @@ export function goalProgress(s, data, g) {
     const po = s.playoffs, finalTeams = po?.final ? (po.series[0]?.teams || po.history?.at(-1)?.series[0]?.teams || []) : [], inFinal = finalTeams.includes(s.teamId), champ = s.champion === s.teamId;
     return {label, now: champ ? '奪冠！' : s.phase === 'finished' ? (inFinal ? '總冠軍賽落敗' : '未奪冠') : seeds?.includes(s.teamId) ? '季後賽進行中' : `目前第 ${pos} 名`, score: champ ? 1 : inFinal ? .6 : seeds?.includes(s.teamId) ? .35 : inNow ? .3 : 0, done: s.phase === 'finished'};
   }
+  if (g.type === 'rank') {const order = standings(s).map(([id]) => id), pos = order.indexOf(s.teamId) + 1; return {label, now: `目前第 ${pos} 名`, score: pos <= g.target ? 1 : clamp(1 - (pos - g.target) / Math.max(2, order.length / 4), 0, 1), done};}
   if (g.type === 'payroll') {const pay = payroll(s, data, s.teamId); return {label, now: `目前 US$${(pay / 1e6).toFixed(2)}M`, score: pay <= g.target ? 1 : clamp(1 - (pay - g.target) / g.target * 5, 0, 1), done};}
   if (g.type === 'profit') {const d = f.cash - (s.board?.startCash ?? f.cash); return {label, now: `${d >= 0 ? '+' : '−'}US$${(Math.abs(d) / 1e6).toFixed(2)}M`, score: d >= 0 ? 1 : clamp(1 + d / Math.max(1, s.board.startCash) * 4, 0, 1), done};}
   if (g.type === 'attendance') {const avg = f.homeGames ? Math.round(f.attendanceTotal / f.homeGames) : 0; return {label, now: f.homeGames ? `平均 ${avg.toLocaleString('en-US')} 人` : '尚未有主場比賽', score: f.homeGames ? clamp(avg / g.target, 0, 1.1) : .5, done};}
@@ -221,7 +231,9 @@ export function goalProgress(s, data, g) {
 }
 export function boardStatus(s, data) {
   const b = boardOf(s, data), goals = b.goals.map(g => ({...g, ...goalProgress(s, data, g)}));
-  const grade = Math.round(goals.reduce((a, g) => a + g.weight * Math.min(1, g.score), 0));
+  // Harder boards give no credit below the floor share of a goal and scale the rest (easy: linear, as before).
+  const floor = difficultyInfo(s).floor, credit = x => floor ? clamp((Math.min(1, x) - floor) / (1 - floor), 0, 1) : Math.min(1, x);
+  const grade = Math.round(goals.reduce((a, g) => a + g.weight * credit(g.score), 0));
   const fire = difficultyInfo(s).fire;
   const mood = b.confidence >= 75 ? '非常信任' : b.confidence >= 55 ? '支持' : b.confidence >= Math.max(35, fire + 5) ? '觀望' : b.confidence >= fire ? '不滿' : '準備換人';
   return {board: b, goals, grade, mood};

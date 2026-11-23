@@ -85,3 +85,16 @@ test('losses are multiplied by the level\'s penalty, gains are not', () => {
   if (hd.delta < 0) assert.ok(hl.delta <= hd.delta, `${hl.delta} vs ${hd.delta}`);
   else assert.ok(hd.delta >= 0 && hl.delta >= 0);
 });
+
+test('harder boards set more and tougher goals; easy keeps the old goals', () => {
+  const goals = id => boardOf(fresh(id), base).goals;
+  const easy = goals('easy'), normal = goals('normal'), hard = goals('hard'), hell = goals('hell');
+  assert.equal(easy.length, 3);
+  assert.equal(normal.length, 3);
+  assert.equal(hard.length, 4);
+  assert.equal(hell.length, 5);
+  assert.ok(hard.some(g => g.type === 'rank') && hell.some(g => g.type === 'rank'));
+  for (const g of [easy, normal, hard, hell]) assert.equal(g.reduce((a, x) => a + x.weight, 0), 100);
+  const wins = g => g.find(x => x.type === 'wins')?.target ?? 0;
+  assert.ok(wins(easy) < wins(normal) && wins(normal) < wins(hard) && wins(hard) < wins(hell), [easy, normal, hard, hell].map(wins).join(','));
+});

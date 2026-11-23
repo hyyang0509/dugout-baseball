@@ -128,4 +128,5 @@
 - 新遊戲：app 在 makeWorld 後呼叫 setDifficulty(userSeason(w),level,{initial:true})（刪掉 s.board，讓 boardOf 以 start 建立）。原隊重玩沿用目前難度。
 - confidenceDelta：(考核−60)×.6＋輿情×.15＋稱號，乘上這次考核涵蓋的球季比例；負值再乘 penalty。季中考核（midSeasonReview，daily hook 在 midNoted 之後呼叫）依 checks（困難 [.5]、地獄 [.25,.5,.75]）各用掉一部分比例（b.applied），季末只用剩下的比例，一季總權重仍是 1。困難、地獄不再發「期中評估」新聞，改發季中考核新聞。
 - 季中解職：b.result={fired:true,midseason:true,handled:false,day}。jobLost(s) 為真時 app 的 simulate 不推進、模擬按鈕停用，首頁顯示 firedSection。takeJob 在季中：新董事會 result=null、joinedDay=s.day，季末照常考核但不會解職，也不做季中考核。新工作起始信任度：easy 55（舊規則），其他為該難度 start−5。
-- 平衡參考（韓職 10 隊 × 2 種子、GM 不操作、第一季）：輕鬆、標準、困難 0/20 被解職；地獄 2/20（季末）。
+- 目標（makeGoals）：DIFFICULTY 的 winsBonus（0/2/4/6）加到勝場目標；extra 加目標：'rank'（standings 名次 ≤ 預估戰力名次，地獄再 −1）、'money'（已有 profit 就加 attendance，否則加 profit），各權重 25 後整體正規化成 100。boardStatus 的給分：floor（0/.5/.6/.7）以下 0 分，以上線性到 1；easy floor 0 等於舊算法。目標在董事會建立時產生，季中調低難度只改給分、不改目標。
+- 平衡參考（中職＋韓職各隊 × 2 種子、GM 不操作）：第一季被解職 輕鬆 0%、標準 9%、困難 28%、地獄 69%；兩季累計 0%、9%、41%、91%。只改目標或門檻都要重跑類似的模擬。
