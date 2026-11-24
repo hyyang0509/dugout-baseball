@@ -1,17 +1,17 @@
-import {defenseDiagram} from './art.js?v=39';
-import {createSaveStore,formatBytes} from './storage.js?v=39';
-import {CAREER_KEY,NAME_MAX,normalizeProfile,cleanName,worldIdOf,careerOf,careerTotals,reputationPath,reputationLevel,stints,ACHIEVEMENTS,achievements,formatMoney,DIFFICULTY_LABEL,LEAGUE_SHORT as CAREER_LEAGUE} from './career.js?v=39';
-import {mementoData,drawMemento,MEMENTO_WIDTH} from './memento.js?v=39';
-import {ensureContract,ensureMarket,marketReason,marketDecided,acceptOffer,startWaiting,startIdleSeason,recordIdleSeason,yearsLeft,COMPENSATION_RATE} from './jobs.js?v=39';
-import {standingGroups,seriesFormat} from './postseason.js?v=39';
-import {LEAGUES,loadLeague,loadLegacyRoster} from './leagues.js?v=39';
-import {packWorld,WORLD_KEY,LEAGUE_ORDER,LEAGUE_NAME,LEAGUE_SHORT,HOME_LEAGUE,isForeign,toWorldScale,makeWorld,worldDatas,worldNextDay,restoreWorld,legacyRosterNeeds,attachLegacyPool,userSeason,worldTop,leagueStrength,isKnown,ratingView,ovrView,startScouting,scoutCost,scoutingDaysLeft,scouting,SCOUT_DAYS,SCOUT_SLOTS} from './world.js?v=39';
-import {startOffseason,completeOffseason,setExpiringDecision,setExpiringOffer,releaseInOffseason,offseasonReleaseCheck,setPostingDecision,setBid,bidStatus,leagueSalary,offerValue,FOREIGN_QUOTA,POSTING_FEE} from './offseason.js?v=39';
-import {portraitSVG,managerCapSVG} from './portrait.js?v=39';
-import {BAT_COLUMNS,PIT_COLUMNS,statRows,batLine,pitchLine,ip,warContext,batWar,pitWar,fmtWar,leagueBaselines,opsPlus,eraPlus} from './stats.js?v=39';
-import {MANAGER_STYLES,DIFFICULTY,DIFFICULTY_ORDER,difficultyOf,setDifficulty,canRaiseDifficulty,jobLost,managerOf,managerCandidates,managerFee,hireManager,setSelfManaged,gmOf,TITLES,titleInfo,boardStatus,jobOffers,takeJob,fansOf,sentimentLabel,ensureFront} from './front.js?v=39';
-import {CATEGORIES,bestLineup,teamReport,leagueProfiles,tradeImpact,assistantOf,assistantReport,assistantVerdict,assistantCandidates,assistantFee,assistantStars,hireAssistant,ASSISTANT_STYLES} from './gm.js?v=39';
-import {START_YEAR,currentPicture,postseasonFormat,halfStandings,halfBoundary,seriesGame,seriesDone,teamStrategy,STRATEGY_LABEL,STRATEGY_HINT,untouchables,userLocks,setUserLock,USER_LOCK_MAX,userSeasonOver,tradeCounters,playerTraits,TRAIT_LABELS,TRAIT_HINTS,RARITY_LABEL,gateEstimate,saveVersionSupported,missingSavePlayers,makeSeason,nextDay,resolveEvent,standings,autoLineup,availableLineup,chooseStarter,hasBat,hasPitch,batValue,pitchValue,teamOf,rosterFor,positionsOf,migrateSeason,setLineup,setPosition,assignFielding,salaryOf,payroll,remainingSalary,evaluateTrade,executeTrade,setTicketPrice,seasonGames,tradeDeadline,salaryFractionRemaining,dailySalary,EVENT_RATE,eventChoiceStatus,advanceSeason,seasonData,playerAge,overall,positionLabel,ovr,potential,g100,g100delta,primaryPosition,normOffer,isImport,importCount,FOREIGN_LIMIT,releaseCheck,releasePlayer,clamp,salaryFor,contractYears,offerOutlook,OUTLOOK_LABEL,extensionCheck,extendContract,freeAgentPool,signCheck,signFreeAgent,freeAgentDeadline} from './engine.js?v=39';
+import {defenseDiagram} from './art.js?v=40';
+import {createSaveStore,formatBytes} from './storage.js?v=40';
+import {CAREER_KEY,NAME_MAX,normalizeProfile,cleanName,worldIdOf,careerOf,careerTotals,reputationPath,reputationLevel,stints,ACHIEVEMENTS,achievements,formatMoney,DIFFICULTY_LABEL,LEAGUE_SHORT as CAREER_LEAGUE} from './career.js?v=40';
+import {mementoData,drawMemento,MEMENTO_WIDTH} from './memento.js?v=40';
+import {ensureContract,ensureMarket,marketReason,marketDecided,acceptOffer,startWaiting,startIdleSeason,recordIdleSeason,yearsLeft,COMPENSATION_RATE} from './jobs.js?v=40';
+import {standingGroups,seriesFormat} from './postseason.js?v=40';
+import {LEAGUES,loadLeague,loadLegacyRoster} from './leagues.js?v=40';
+import {packWorld,WORLD_KEY,LEAGUE_ORDER,LEAGUE_NAME,LEAGUE_SHORT,HOME_LEAGUE,isForeign,toWorldScale,makeWorld,worldDatas,worldNextDay,restoreWorld,legacyRosterNeeds,attachLegacyPool,userSeason,worldTop,leagueStrength,isKnown,ratingView,ovrView,startScouting,scoutCost,scoutingDaysLeft,scouting,SCOUT_DAYS,SCOUT_SLOTS} from './world.js?v=40';
+import {startOffseason,completeOffseason,setExpiringDecision,setExpiringOffer,releaseInOffseason,offseasonReleaseCheck,setPostingDecision,setBid,bidStatus,leagueSalary,offerValue,FOREIGN_QUOTA,POSTING_FEE} from './offseason.js?v=40';
+import {portraitSVG,managerCapSVG} from './portrait.js?v=40';
+import {BAT_COLUMNS,PIT_COLUMNS,statRows,batLine,pitchLine,ip,warContext,batWar,pitWar,fmtWar,leagueBaselines,opsPlus,eraPlus} from './stats.js?v=40';
+import {MANAGER_STYLES,DIFFICULTY,DIFFICULTY_ORDER,difficultyOf,setDifficulty,canRaiseDifficulty,jobLost,managerOf,managerCandidates,managerFee,hireManager,setSelfManaged,gmOf,TITLES,titleInfo,boardStatus,jobOffers,takeJob,fansOf,sentimentLabel,ensureFront} from './front.js?v=40';
+import {CATEGORIES,bestLineup,teamReport,leagueProfiles,tradeImpact,assistantOf,assistantReport,assistantVerdict,assistantCandidates,assistantFee,assistantStars,hireAssistant,ASSISTANT_STYLES} from './gm.js?v=40';
+import {START_YEAR,currentPicture,postseasonFormat,halfStandings,halfBoundary,seriesGame,seriesDone,teamStrategy,STRATEGY_LABEL,STRATEGY_HINT,untouchables,userLocks,setUserLock,USER_LOCK_MAX,userSeasonOver,tradeCounters,playerTraits,TRAIT_LABELS,TRAIT_HINTS,RARITY_LABEL,gateEstimate,saveVersionSupported,missingSavePlayers,makeSeason,nextDay,resolveEvent,standings,autoLineup,availableLineup,chooseStarter,hasBat,hasPitch,batValue,pitchValue,teamOf,rosterFor,positionsOf,migrateSeason,setLineup,setPosition,assignFielding,salaryOf,payroll,remainingSalary,evaluateTrade,executeTrade,setTicketPrice,seasonGames,tradeDeadline,salaryFractionRemaining,dailySalary,EVENT_RATE,eventChoiceStatus,advanceSeason,seasonData,playerAge,overall,positionLabel,ovr,potential,g100,g100delta,primaryPosition,normOffer,isImport,importCount,FOREIGN_LIMIT,releaseCheck,releasePlayer,clamp,salaryFor,contractYears,offerOutlook,OUTLOOK_LABEL,extensionCheck,extendContract,freeAgentPool,signCheck,signFreeAgent,freeAgentDeadline} from './engine.js?v=40';
 const $=s=>document.querySelector(s);let KEY=WORLD_KEY;let world=null,bases={},datas={},viewLeague=null;let baseData,data,state=null,page='dashboard',rosterTab='lineup',leaderTab='teams',statKind='bat',statSort={bat:'ops',pit:'era'},busy=false,modal=null,selectedTeam='mlb:119',filter='',starter=null,saveError=false;let newsFilter='all',newsDay='all';
 let activeLeague='MLB';let newDifficulty='normal';
 const simHalted=()=>state.phase==='finished'||jobLost(state);
@@ -217,14 +217,14 @@ const POSTSEASON_RULE={
 // In the postseason, not playing this round and not knocked out (MLB's top two seeds skip the wild card round).
 function seasonOverForUser(){return state.phase==='playoffs'&&userSeasonOver(state);}
 function userOnBye(){const po=state.playoffs;if(state.phase!=='playoffs'||!po.seeds.includes(state.teamId))return false;const lost=x=>x.teams.includes(state.teamId)&&seriesDone(x)&&x.teams[x.wins[0]>=x.need?1:0]===state.teamId;return !po.series.some(x=>x.teams.includes(state.teamId))&&!po.history.some(h=>h.series.some(lost));}
-const PLAYOFF_SPOTS={mlb:'美聯、國聯各 6 隊晉級（分區冠軍＋外卡）',npb:'央聯、洋聯各前 3 名晉級',kbo:'前 5 名晉級季後賽',cpbl:'半季冠軍與全年最佳球隊晉級',top4:'前 4 名晉級季後賽'};
+const PLAYOFF_SPOTS={mlb:'每聯盟 6 隊晉級',npb:'每聯盟前 3 晉級',kbo:'前 5 名晉級',cpbl:'半季冠軍＋全年最佳晉級',top4:'前 4 名晉級'};
 // Home page note under the league rank, using the league's real postseason format.
 function rankNote(){
  if(state.phase==='finished')return state.champion===state.teamId?'本季總冠軍！':state.playoffs?.seeds?.includes(state.teamId)?'本季打進季後賽':'本季未打進季後賽';
  if(state.phase==='playoffs')return !state.playoffs.seeds.includes(state.teamId)?'本季未打進季後賽':userSeasonOver(state)?'季後賽已遭淘汰':'季後賽奮戰中';
  const spots=PLAYOFF_SPOTS[postseasonFormat(state)]||PLAYOFF_SPOTS.top4;
- if(!state.day)return `新球季，所有人同一起跑點 · ${spots}`;
- return currentPicture(state).seeds.includes(state.teamId)?`目前位居季後賽席次 · ${spots}`:spots;
+ if(!state.day)return spots;
+ return currentPicture(state).seeds.includes(state.teamId)?`晉級區內 · ${spots}`:spots;
 }
 function postseasonRule(){return POSTSEASON_RULE[postseasonFormat(state)];}
 function playoffPanel(){
