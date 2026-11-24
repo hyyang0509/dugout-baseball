@@ -1,9 +1,10 @@
-// GM career profile (v3.5). Lives outside the world save (storage key dugout.gm.v1), so
-// restarting a game never clears it. Pure functions only: the app loads and saves it.
+// GM career (v3.6). A world is one GM's career: the world save holds w.gm ({name, createdAt,
+// retired}) and the season records come from the user season's GM history (front.js), so
+// there is nothing extra to store. Reputation, totals, earnings, the team timeline and
+// achievements are all derived from those records. Pure functions only.
 //
-// The profile stores only each GM's season records. Reputation, totals, earnings, the team
-// timeline and achievements are all derived from those records, so recording the same
-// season twice (reloading an old save, importing a file) never double-counts anything.
+// v3.5 kept careers in a separate store (dugout.gm.v1). v3.6 no longer writes it; the app
+// only reads it once to offer keepsake images of GMs whose worlds were replaced.
 export const CAREER_KEY = 'dugout.gm.v1';
 export const CAREER_KIND = 'bm27-gm-career';
 export const NAME_MAX = 12;
@@ -18,9 +19,7 @@ const DIFFICULTY_WEIGHT = {easy: .8, normal: 1, hard: 1.25, hell: 1.5};
 const TITLE_REP = {champion: 2, genius: 2, tyrant: -2, gambler: -2};
 export const DIFFICULTY_LABEL = {easy: '輕鬆', normal: '標準', hard: '困難', hell: '地獄'};
 
-export const blankProfile = () => ({kind: CAREER_KIND, version: 1, gms: [], lastGmId: null});
-
-/** Validates parsed JSON as a profile (throws a readable error). */
+/** Validates a v3.5 career profile (read-only legacy data; throws a readable error). */
 export function normalizeProfile(p) {
   if (!p || p.kind !== CAREER_KIND || !Array.isArray(p.gms)) throw new Error('不是 BM27 GM 生涯檔');
   for (const g of p.gms) {
@@ -34,20 +33,6 @@ export function cleanName(name) {
   return String(name ?? '').replace(/\s+/g, ' ').trim().slice(0, NAME_MAX);
 }
 /** Adds a GM. A name already in use gets a number: 阿明 → 阿明 (2). */
-function uniqueName(profile, name) {
-  const base = cleanName(name) || '無名 GM', taken = new Set(profile.gms.map(g => g.name));
-  let n = 1, unique = base;
-  while (taken.has(unique)) unique = `${base} (${++n})`;
-  return unique;
-}
-export function addGm(profile, name, {id, now = new Date().toISOString()} = {}) {
-  const gm = {id: id || `gm-${Date.parse(now).toString(36)}-${Math.random().toString(36).slice(2, 7)}`, name: uniqueName(profile, name), createdAt: now, seasons: []};
-  profile.gms.push(gm);
-  profile.lastGmId = gm.id;
-  return gm;
-}
-export const gmById = (profile, id) => profile.gms.find(g => g.id === id) || null;
-
 /** A world's stable id (older worlds: derived from createdAt). */
 export function worldIdOf(w) {
   w.worldId ??= `w-${w.createdAt || 'legacy'}`;
@@ -75,39 +60,11 @@ export function seasonRecord(worldId, h, fallbackLeague) {
   return {...e, ...payFor(e)};
 }
 
-/**
- * Upserts every season of a world's GM history into the GM. Returns true when anything changed.
- * The first time a record is seen fixes its place in the career (seq), so reputation folds in order.
- */
-export function syncWorld(profile, gmId, worldId, history, league) {
-  const gm = gmById(profile, gmId); if (!gm) return false;
-  let changed = false, seq = gm.seasons.reduce((a, e) => Math.max(a, e.seq || 0), 0);
-  // history is newest first; record oldest first.
-  for (const h of [...history].reverse()) {
-    const rec = seasonRecord(worldId, h, league), key = seasonKey(rec), i = gm.seasons.findIndex(e => seasonKey(e) === key);
-    if (i < 0) { gm.seasons.push({...rec, seq: ++seq}); changed = true; continue; }
-    const merged = {...rec, seq: gm.seasons[i].seq};
-    if (JSON.stringify(merged) !== JSON.stringify(gm.seasons[i])) { gm.seasons[i] = merged; changed = true; }
-  }
-  return changed;
-}
-
-/** Merges another profile (import). GMs match by id; seasons match by key. */
-export function mergeProfiles(into, other) {
-  normalizeProfile(other);
-  let added = 0, seasons = 0;
-  for (const g of other.gms) {
-    let mine = gmById(into, g.id);
-    if (!mine) {
-      mine = {id: g.id, name: uniqueName(into, g.name), createdAt: g.createdAt, seasons: []}; into.gms.push(mine); added++;
-    }
-    let seq = mine.seasons.reduce((a, e) => Math.max(a, e.seq || 0), 0);
-    for (const e of [...g.seasons].sort((a, b) => (a.seq || 0) - (b.seq || 0))) {
-      if (mine.seasons.some(x => seasonKey(x) === seasonKey(e))) continue;
-      mine.seasons.push({...e, seq: ++seq}); seasons++;
-    }
-  }
-  return {added, seasons};
+/** The GM career of a world: {name, createdAt, retired, seasons} with records oldest first. */
+export function careerOf(w, history = []) {
+  const worldId = worldIdOf(w), list = [...history].reverse();
+  return {name: w.gm?.name || '無名 GM', createdAt: w.gm?.createdAt || w.createdAt, retired: w.gm?.retired || null,
+    seasons: list.map((h, i) => ({...seasonRecord(worldId, h, w.userLeague), seq: i + 1}))};
 }
 
 const ordered = gm => [...gm.seasons].sort((a, b) => (a.seq || 0) - (b.seq || 0));

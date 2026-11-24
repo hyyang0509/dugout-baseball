@@ -1,8 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {makeSeason,nextDay,standings,halfStandings,halfBoundary,postseasonFormat,migrateSeason} from '../dist/engine.js?v=36';
-import {formatFor,playoffPicture,startPlayoffs,advancePlayoffs,seriesGame,seriesDone,seriesWinner,seriesFormat,migratePlayoffs,MLB_DIVISION,NPB_LEAGUE} from '../dist/postseason.js?v=36';
+import {makeSeason,nextDay,standings,halfStandings,halfBoundary,postseasonFormat,migrateSeason} from '../dist/engine.js?v=37';
+import {formatFor,playoffPicture,startPlayoffs,advancePlayoffs,seriesGame,seriesDone,seriesWinner,seriesFormat,migratePlayoffs,MLB_DIVISION,NPB_LEAGUE} from '../dist/postseason.js?v=37';
 const load=l=>JSON.parse(fs.readFileSync(new URL(`../dist/data/roster_${l}.json`,import.meta.url)));
 
 // Plays a series to the end: `pick(series)` returns the index (0 or 1) of the winner of each game.
