@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import * as C from '../dist/career.js?v=37';
-import {makeSeason, nextDay, resolveEvent} from '../dist/engine.js?v=37';
-import {setDifficulty, ensureFront, gmOf, jobLost, jobOffers, takeJob} from '../dist/front.js?v=37';
+import * as C from '../dist/career.js?v=38';
+import {makeSeason, nextDay, resolveEvent} from '../dist/engine.js?v=38';
+import {setDifficulty, ensureFront, gmOf, jobLost, jobOffers, takeJob} from '../dist/front.js?v=38';
 
 const base = JSON.parse(fs.readFileSync(new URL('../dist/data/roster_cpbl.json', import.meta.url), 'utf8'));
 const h = (year, o = {}) => ({year, teamId: 'cpbl:a', team: 'A 隊', league: 'CPBL', w: 41, l: 40, grade: 60, confidence: 60, champion: false, fired: false, difficulty: 'normal', playoffs: false, rounds: 0, budgetPct: .5, share: 1, titleIds: [], ...o});
@@ -94,7 +94,7 @@ test('a real season records league, playoffs and pay; a mid-season move splits t
 });
 
 test('the keepsake image data summarises the career', async () => {
-  const {mementoData} = await import('../dist/memento.js?v=37');
+  const {mementoData} = await import('../dist/memento.js?v=38');
   const list = Array.from({length: 22}, (_, i) => h(2027 + i, {champion: i === 10, playoffs: i % 2 === 0, rounds: i === 10 ? 3 : 0, fired: i === 21}));
   const d = mementoData({...careerFrom(list), retired: {year: 2048}}, {now: new Date('2048-11-01')});
   assert.equal(d.name, 'G');

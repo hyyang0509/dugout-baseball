@@ -41,14 +41,17 @@ export function worldIdOf(w) {
 export const seasonKey = e => `${e.worldId}|${e.year}|${e.teamId}|${e.midseason ? 'm' : 's'}`;
 
 /** GM salary and bonus for one season record (game dollars). */
+export const salaryForBudget = (league, budgetPct) => { const [lo, hi] = SALARY_RANGE[league] || SALARY_RANGE.MLB; return Math.round((lo + (hi - lo) * Math.min(1, Math.max(0, budgetPct ?? .5))) / 1000) * 1000; };
 export function payFor(e) {
-  const [lo, hi] = SALARY_RANGE[e.league] || SALARY_RANGE.MLB, share = e.share ?? 1;
-  const salary = Math.round((lo + (hi - lo) * Math.min(1, Math.max(0, e.budgetPct ?? .5))) * share / 1000) * 1000;
+  if (e.unemployed) return {salary: 0, bonus: 0, severance: 0};
+  const share = e.share ?? 1, base = e.contractSalary ?? salaryForBudget(e.league, e.budgetPct);
+  const salary = Math.round(base * share / 1000) * 1000;
   let rate = 0;
   if (e.playoffs) rate += .1 + .05 * (e.rounds || 0);
   if (e.champion) rate += .25;
   if (!e.midseason && (e.grade ?? 0) >= 80) rate += .1;
-  return {salary, bonus: Math.round(salary * rate / 1000) * 1000};
+  // A fired GM is paid the rest of the contract (as clubs do in real baseball).
+  return {salary, bonus: Math.round(salary * rate / 1000) * 1000, severance: e.fired ? e.owed || 0 : 0};
 }
 
 /** Turns a front.js history entry into a profile season record. */
@@ -56,7 +59,8 @@ export function seasonRecord(worldId, h, fallbackLeague) {
   const e = {worldId, year: h.year, league: h.league || fallbackLeague, teamId: h.teamId, team: h.team, w: h.w || 0, l: h.l || 0,
     playoffs: !!(h.playoffs || h.champion), rounds: h.rounds || 0, champion: !!h.champion, grade: h.grade ?? null, confidence: h.confidence ?? null,
     fired: !!h.fired, midseason: !!h.midseason, joined: !!h.joined, difficulty: h.difficulty || 'easy', titleIds: h.titleIds || [],
-    budgetPct: h.budgetPct ?? .5, share: h.share ?? 1, legacy: h.league == null};
+    budgetPct: h.budgetPct ?? .5, share: h.share ?? 1, legacy: h.league == null && !h.unemployed,
+    contractSalary: h.contractSalary ?? null, owed: h.owed || 0, leftEarly: !!h.leftEarly, unemployed: !!h.unemployed};
   return {...e, ...payFor(e)};
 }
 
@@ -68,18 +72,21 @@ export function careerOf(w, history = []) {
 }
 
 const ordered = gm => [...gm.seasons].sort((a, b) => (a.seq || 0) - (b.seq || 0));
+const worked = gm => ordered(gm).filter(e => !e.unemployed);
 
 /** Reputation change for one record (before mean reversion). */
 export function reputationDelta(e) {
+  if (e.unemployed) return 2; // a year away lets a bad reputation fade a little
   let gain = 0;
   const games = e.w + e.l;
-  if (games) gain += (e.w / games - .5) * 40 * Math.min(1, games / 60);
-  if (e.playoffs) gain += 3 + 2 * (e.rounds || 0);
-  if (e.champion) gain += 10;
-  if (e.grade != null && !e.midseason) gain += (e.grade - 60) * .1;
+  if (games) gain += (e.w / games - .5) * 30 * Math.min(1, games / 60);
+  if (e.playoffs) gain += 2 + (e.rounds || 0);
+  if (e.champion) gain += 5;
+  if (e.grade != null && !e.midseason) gain += (e.grade - 60) * .05;
   for (const id of e.titleIds || []) gain += TITLE_REP[id] || 0;
   if (gain > 0) gain *= (LEAGUE_WEIGHT[e.league] ?? 1) * (DIFFICULTY_WEIGHT[e.difficulty] ?? 1);
   if (e.fired) gain -= 8;
+  if (e.leftEarly) gain -= 4;
   return gain;
 }
 /** Reputation path: [{key, before, after}] plus the final value. */
@@ -89,7 +96,7 @@ export function reputationPath(gm) {
     const before = rep;
     rep += reputationDelta(e);
     // Drift toward 30 once per full season record (a mid-season firing is part of a season).
-    if (!e.midseason) rep -= (rep - 30) * .04;
+    if (!e.midseason) rep -= (rep - 30) * .06;
     rep = Math.max(0, Math.min(100, rep));
     path.push({key: seasonKey(e), before: Math.round(before), after: Math.round(rep)});
   }
@@ -102,23 +109,24 @@ export function reputationLevel(rep) {
 
 /** Totals for the hall of fame. Seasons count once per year (a mid-season move is one season). */
 export function careerTotals(gm) {
-  const s = gm.seasons, years = new Set(s.map(e => `${e.worldId}|${e.year}`));
+  const s = worked(gm), years = new Set(s.map(e => `${e.worldId}|${e.year}`));
   const w = s.reduce((a, e) => a + e.w, 0), l = s.reduce((a, e) => a + e.l, 0);
-  const salary = s.reduce((a, e) => a + (e.salary || 0), 0), bonus = s.reduce((a, e) => a + (e.bonus || 0), 0);
+  const salary = s.reduce((a, e) => a + (e.salary || 0), 0), bonus = s.reduce((a, e) => a + (e.bonus || 0), 0), severance = s.reduce((a, e) => a + (e.severance || 0), 0);
   return {seasons: years.size, w, l, pct: w + l ? w / (w + l) : null, playoffs: s.filter(e => e.playoffs).length, champions: s.filter(e => e.champion).length,
-    fired: s.filter(e => e.fired).length, salary, bonus, earnings: salary + bonus, reputation: reputationOf(gm), leagues: [...new Set(s.map(e => e.league))]};
+    fired: s.filter(e => e.fired).length, salary, bonus, severance, earnings: salary + bonus + severance, idle: gm.seasons.filter(e => e.unemployed).length, reputation: reputationOf(gm), leagues: [...new Set(s.map(e => e.league))]};
 }
 
 /** Team timeline: consecutive records with the same club in the same world merge into one stint. */
 export function stints(gm) {
   const out = [];
-  for (const e of ordered(gm)) {
+  for (const e of worked(gm)) {
     const last = out.at(-1);
     if (last && last.worldId === e.worldId && last.teamId === e.teamId && !last.ended && e.year === last.to + 1) {
       last.to = e.year; last.w += e.w; last.l += e.l; last.champions += e.champion ? 1 : 0;
     } else out.push({worldId: e.worldId, league: e.league, teamId: e.teamId, team: e.team, from: e.year, to: e.year, w: e.w, l: e.l, champions: e.champion ? 1 : 0, joined: e.joined});
     const cur = out.at(-1);
     if (e.fired) { cur.ended = e.midseason ? '季中解職' : '解職'; }
+    else if (e.leftEarly) cur.ended = '跳槽';
   }
   // A stint that is followed by a different club in the same world without a firing was left.
   for (let i = 0; i < out.length - 1; i++) if (!out[i].ended && out[i].worldId === out[i + 1].worldId) out[i].ended = '離開';
@@ -147,7 +155,7 @@ export function achievements(gm) {
   const got = new Map(), give = (id, e) => { if (!got.has(id)) got.set(id, {id, year: e.year, label: ACHIEVEMENTS.find(a => a.id === id).label}); };
   let wins = 0; const titleLeagues = new Set(), leagues = new Set(), streak = {}, tenure = {};
   let lastFired = null, seasonsSinceFired = 0;
-  const list = ordered(gm);
+  const list = worked(gm);
   for (const e of list) {
     if (e.w > 0) give('firstWin', e);
     if (e.playoffs) give('firstPlayoffs', e);
