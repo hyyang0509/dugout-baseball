@@ -1,7 +1,7 @@
 // GM career keepsake image (v3.6). mementoData() turns a career (career.js) into plain
 // rows; drawMemento() paints them on a canvas the app turns into a PNG. Drawing uses only
 // the 2D context API, so the layout is the same on phones and computers.
-import {careerTotals, reputationPath, reputationLevel, stints, achievements, formatMoney, DIFFICULTY_LABEL, LEAGUE_SHORT} from './career.js?v=37';
+import {careerTotals, reputationPath, reputationLevel, stints, achievements, formatMoney, DIFFICULTY_LABEL, LEAGUE_SHORT} from './career.js?v=38';
 
 export const MEMENTO_WIDTH = 1080;
 const MAX_SEASON_ROWS = 18;
@@ -11,16 +11,16 @@ export function mementoData(gm, {now = new Date(), teamName = id => id} = {}) {
   const t = careerTotals(gm), seasons = [...gm.seasons].sort((a, b) => (a.seq || 0) - (b.seq || 0));
   const {path} = reputationPath(gm), years = seasons.map(e => e.year);
   const pct = t.pct == null ? '—' : t.pct.toFixed(3).replace(/^0/, '');
-  const rows = seasons.map((e, i) => ({year: e.year, team: e.team || teamName(e.teamId), league: LEAGUE_SHORT[e.league] || e.league || '',
+  const rows = seasons.map((e, i) => e.unemployed ? {year: e.year, team: '沒有球隊', league: '', record: '—', result: '等待機會', note: '', difficulty: '', rep: path[i]?.after ?? null} : ({year: e.year, team: e.team || teamName(e.teamId), league: LEAGUE_SHORT[e.league] || e.league || '',
     record: `${e.w}–${e.l}`, result: e.champion ? '總冠軍' : e.fired && e.midseason ? '' : e.playoffs ? (e.rounds ? `季後賽晉級 ${e.rounds} 輪` : '季後賽') : e.legacy ? '' : '未進季後賽',
-    note: e.fired ? (e.midseason ? '季中解職' : '解職') : e.joined ? '季中接任' : '', difficulty: DIFFICULTY_LABEL[e.difficulty] || '', rep: path[i]?.after ?? null}));
+    note: e.fired ? (e.midseason ? '季中解職' : '解職') : e.leftEarly ? '跳槽' : e.joined ? '季中接任' : '', difficulty: DIFFICULTY_LABEL[e.difficulty] || '', rep: path[i]?.after ?? null}));
   return {
     name: gm.name || '無名 GM',
     span: years.length ? (Math.min(...years) === Math.max(...years) ? `${years[0]}` : `${Math.min(...years)}–${Math.max(...years)}`) : '尚未完成球季',
     retired: gm.retired ? `${gm.retired.year} 年退休` : '',
     reputation: t.reputation, level: reputationLevel(t.reputation), repPath: [20, ...path.map(p => p.after)],
     stats: [['總戰績', `${t.w}–${t.l}`], ['勝率', pct], ['季後賽', `${t.playoffs} 次`], ['總冠軍', `${t.champions} 座`], ['執掌球季', `${t.seasons} 季`], ['被解職', `${t.fired} 次`]],
-    earnings: `${formatMoney(t.earnings)}（年薪 ${formatMoney(t.salary)}＋獎金 ${formatMoney(t.bonus)}）`,
+    earnings: `${formatMoney(t.earnings)}（年薪 ${formatMoney(t.salary)}＋獎金 ${formatMoney(t.bonus)}${t.severance ? `＋解約金 ${formatMoney(t.severance)}` : ''}）`,
     stints: stints(gm).map(x => ({league: LEAGUE_SHORT[x.league] || x.league, years: x.from === x.to ? `${x.from}` : `${x.from}–${x.to}`, team: x.team || teamName(x.teamId),
       detail: `${x.w}–${x.l}${x.champions ? ` · 冠軍 ${x.champions}` : ''}${x.joined ? ' · 季中接任' : ''}${x.ended ? ` · ${x.ended}` : ''}`})),
     achievements: achievements(gm).map(a => `${a.label}（${a.year}）`),

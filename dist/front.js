@@ -1,9 +1,9 @@
 // DUGOUT GM layer: the field manager, board goals and job security, GM reputation titles, and fan / pundit buzz.
 // It hooks into the engine (HOOKS) so a season keeps running even if this module is not loaded (tests, AI leagues).
 import {HOOKS, rosterFor, hasBat, hasPitch, ovr, potential, playerAge, payroll, teamStrategy, standings, seasonGames, idHash,
-  moneyScale, clamp, addNews, homeAttendance, normOffer, tradeDeadline, salaryOf, optimizeLineup, currentPicture} from './engine.js?v=37';
-import {teamReport, tradeImpact} from './gm.js?v=37';
-import {seriesWinner} from './postseason.js?v=37';
+  moneyScale, clamp, addNews, homeAttendance, normOffer, tradeDeadline, salaryOf, optimizeLineup, currentPicture} from './engine.js?v=38';
+import {teamReport, tradeImpact} from './gm.js?v=38';
+import {seriesWinner} from './postseason.js?v=38';
 
 const club = (data, id) => data.teams.find(t => t.id === id);
 const seasonYear = s => s.year || 2026;
@@ -250,7 +250,14 @@ function careerFacts(s, data, b) {
   const start = b.joinedDay ?? 0, end = s.phase === 'regular' ? s.day : games;
   return {league: s.league || data.league, w: t.w - jr.w, l: t.l - jr.l, playoffs: !!po?.seeds?.includes(s.teamId), rounds: all.filter(x => seriesWinner(x) === s.teamId).length,
     budgetPct: hi > lo ? (s.finance[s.teamId].budget - lo) / (hi - lo) : .5, share: clamp((end - start) / games, 0, 1), joined: b.joinedDay != null,
-    titleIds: (gmOf(s).titles || []).map(x => x.id)};
+    titleIds: (gmOf(s).titles || []).map(x => x.id), ...contractFacts(s)};
+}
+/** GM contract (v3.7, jobs.js): the locked salary, and on a firing the pay still owed. */
+function contractFacts(s) {
+  const c = gmOf(s).contract; if (!c) return {};
+  const left = Math.max(0, c.from + c.years - 1 - seasonYear(s));
+  // owed: salary for the seasons after this one (paid out if the club fires the GM).
+  return {contractSalary: c.salary, owed: left * c.salary};
 }
 /** Season review: grade, confidence change, and whether the GM keeps the job. */
 export function reviewSeason(s, data) {
@@ -267,6 +274,7 @@ export function reviewSeason(s, data) {
   for (const k of Object.keys(blankCounters())) g.career[k] = (g.career[k] || 0) + (g.season[k] || 0);
   g.history.unshift({year: seasonYear(s), teamId: s.teamId, team: club(data, s.teamId).zh, w: t.w, l: t.l, grade: st.grade, confidence: b.confidence, champion: s.champion === s.teamId, fired, difficulty: g.season.low, titles: (g.titles || []).map(x => TITLE[x.id]?.label).filter(Boolean), ...careerFacts(s, data, b)});
   b.result = {grade: st.grade, delta, fired, confidence: b.confidence, handled: !fired};
+  if (fired) g.contract = null; // the club pays out the rest (career.js counts it as severance)
   refreshTitles(s, data);
   addNews(s, {category: 'decision', teamIds: [s.teamId], title: fired ? '董事會決定解除 GM 職務' : `董事會年度考核：${st.grade} 分`, text: fired ? `本季目標達成度 ${st.grade} 分，董事會信任度跌到 ${b.confidence}。球團決定換人。` : `目標達成度 ${st.grade} 分，董事會信任度 ${delta >= 0 ? '+' : ''}${delta}，目前 ${b.confidence}（${st.mood}）。`});
   fanReact(s, data, fired ? 'fired' : st.grade >= 80 ? 'reviewGood' : st.grade < 45 ? 'reviewBad' : 'reviewOk', {grade: st.grade}, 0);
@@ -294,6 +302,7 @@ export function midSeasonReview(s, data) {
     g.career.fired++;
     g.history.unshift({year: seasonYear(s), teamId: s.teamId, team: club(data, s.teamId).zh, w: t.w, l: t.l, grade: st.grade, confidence: b.confidence, champion: false, fired: true, midseason: true, difficulty: g.season.low, titles: (g.titles || []).map(x => TITLE[x.id]?.label).filter(Boolean), ...careerFacts(s, data, b), day: s.day});
     b.result = {grade: st.grade, delta, fired: true, midseason: true, confidence: b.confidence, handled: false, day: s.day};
+    g.contract = null;
     addNews(s, {category: 'decision', teamIds: [s.teamId], title: '董事會季中解除 GM 職務', text: `季中考核 ${st.grade} 分，董事會信任度跌到 ${b.confidence}（${d.label}難度：低於 ${d.midFire} 當場解職）。球團決定立刻換人。`});
     fanReact(s, data, 'fired', {grade: st.grade}, 0);
   } else {
@@ -307,18 +316,18 @@ export function jobOffers(s, data) {
   return rows.sort((a, b) => b.rank - a.rank || a.id.localeCompare(b.id)).slice(0, 3);
 }
 /** Move the GM to a new club in the same league (world save). Staff stays with the old club except the assistant. */
-export function takeJob(w, s, data, teamId) {
-  if (!jobOffers(s, data).some(o => o.id === teamId)) throw new Error('這支球隊沒有提出邀請。');
+export function takeJob(w, s, data, teamId, {check = true, fromName = null} = {}) {
+  if (check && !jobOffers(s, data).some(o => o.id === teamId)) throw new Error('這支球隊沒有提出邀請。');
   const oldTeam = s.teamId, midseason = s.phase !== 'finished';
   w.teamId = teamId; s.teamId = teamId; s.manualLineup = false; s.manager = null;
-  s.board.result.handled = true;
+  if (s.board?.result) s.board.result.handled = true;
   // Easy keeps the old 55; harder levels start a new job lower. A mid-season hire is reviewed at
   // season's end (but not fired); an off-season hire starts fresh next season.
   const confidence = difficultyOf(s) === 'easy' ? 55 : difficultyInfo(s).start - 5;
   s.board = {year: seasonYear(s), teamId, confidence, startCash: s.finance[teamId].cash, ...makeGoals(s, data), result: midseason ? null : {handled: true, grade: null, newJob: true}, midNoted: true, ...(midseason ? {joinedDay: s.day, joinRecord: {w: s.teams[teamId].w, l: s.teams[teamId].l}, checks: 0, applied: 0} : {})};
   s.fans = {sentiment: 50, posts: [], seq: s.fans?.seq || 0};
   if (s.gm) s.gm.titles = (s.gm.titles || []).filter(t => t.id === 'champion');
-  addNews(s, {category: 'decision', teamIds: [teamId, oldTeam], title: `新東家：接任${club(data, teamId).zh} GM`, text: `離開${club(data, oldTeam).zh}後，${club(data, teamId).zh} 邀請你接掌球團。${midseason ? '剩下的球季先熟悉球隊，季末考核不會解職。' : '新的董事會目標會在下個球季公布。'}`});
+  addNews(s, {category: 'decision', teamIds: [teamId, oldTeam].filter(Boolean), title: `新東家：接任${club(data, teamId).zh} GM`, text: `離開${fromName || club(data, oldTeam)?.zh || '原球團'}後，${club(data, teamId).zh} 邀請你接掌球團。${midseason ? '剩下的球季先熟悉球隊，季末考核不會解職。' : '新的董事會目標會在下個球季公布。'}`});
   fanReact(s, data, 'newGM', {}, 0);
   return s;
 }

@@ -151,3 +151,21 @@
 - dist/memento.js：mementoData(gm)（純資料，可測）與 drawMemento(ctx,d,{draw})。先用 draw:false 量高度，再設定 canvas 高度後繪製；寬 1080px，每季紀錄最多 18 列（較早的顯示「另有 N 季」）。app 的 mementoImage 轉 PNG（檔名 bm27-gm-career-日期.png；中文檔名在部分瀏覽器會被丟掉）。紀念圖視窗顯示預覽圖（手機可長按儲存）；支援 Web Share 檔案分享的裝置多一個「分享或儲存到相簿」按鈕，其他用下載。
 - 退休：被解職時的選項多了「退休，結束生涯」。confirm-retire 寫入 w.gm.retired={year,day,teamId} 並 saveNow；render() 遇到 retired 改畫 renderRetired()（唯讀，只能看生涯、下載紀念圖、開新遊戲），simulate 也會擋下。
 - 「GM 名人堂」改名為「GM 生涯」（page 'hall'），只顯示目前 GM；多 GM 排名、生涯檔匯出／匯入都已移除。
+
+## 發佈（GitHub Pages）
+
+- .github/workflows/pages.yml：test → build（configure-pages、upload-pages-artifact，上傳 dist/）→ deploy（deploy-pages，actions: read、pages: write、id-token: write）。PR 只跑 test。
+- 2026-11-24：v3.6（#30）合併後，原本在同一個 job 裡「上傳後馬上發佈」的 deploy-pages 連續 5 次回報 Found 0 artifact(s)（上傳明明成功）。在同一次 run 重跑失敗的 job 會變成兩份 github-pages artifact，也會失敗。#31 依官方範本拆成 build/deploy 兩個 job 並給 actions: read 後成功（run #71）。無法確定是哪一項修正生效，還是 GitHub 那段時間剛好恢復；拆開本來就是官方做法，維持這樣。
+- 合併不等於發佈：合併後要確認 main 上「Test and deploy DUGOUT」的 deploy job 成功，才算上線。要重新發佈就手動觸發新的 run（workflow_dispatch），不要對 Pages run 用「Re-run failed jobs」。
+
+## v3.7 GM 合約、挖角、跨聯盟、等待機會
+
+- dist/jobs.js。合約存在 gmOf(userSeason).contract={teamId,league,from,years,salary}；ensureContract 在 render 時補上（舊存檔：本季起 3 年）。yearsLeft(c,year)=from+years−year（含當年）。年薪 clubSalary＝career.js 的 salaryForBudget（聯盟範圍內依球團預算）。
+- marketReason(w)：fired（季末解職）／midseason（季中解職，只限同聯盟）／expired（季末合約到期）／poach（季末，合約未滿）／waiting（等待一季後）／null（有 w.offseason、已簽下季合約 from>year、退休）。ensureMarket 依 key（年|原因|球隊）只算一次，存在 s.gmMarket（choice 為已接受的 index）。offers 由 idHash(worldId, 年|原因|球隊|聯盟) 種子產生，重新整理不會變。
+- 聲望門檻（eligible）：同聯盟弱隊一定可以、中段 40、強隊 55；較弱聯盟 45（弱）／55；高一級聯盟 75／85／90；高兩級以上 85／92（LEAGUE_LEVEL：中職 0、韓職 1、日職 2、美職 3）。數量：到期 2–3、挖角（聲望 55 以下 0）、解職與等待 1–2（聲望很低時一半機率沒有）。到期且信任度 ≥ 解職門檻＋10 時，原球團加一份續約（年薪＋5%）。
+- 挖角（約內）只能接受 stepUp（較高層級聯盟，或同聯盟預算較大的球團），blocked 的按鈕停用。新東家付補償金＝剩餘年薪（本季之後）×50%，從新球團現金扣、加到原球團；本季歷史紀錄標 leftEarly（聲望 −4，時間軸記「跳槽」）。
+- 解職：front.js 在 history 紀錄 contractSalary 與 owed（本季之後的年薪），career.js 的 payFor 把 owed 當解約金（severance）算進收入，合約清除。
+- acceptOffer：同聯盟用 takeJob（{check:false}）；跨聯盟只在季末，先 finishWorld，再把 gm／gmMarket 移到新聯盟的 season，舊 season 設 aiOnly、teamId=null、trimAI，w.userLeague／w.teamId 換成新的，再 takeJob。新合約 from＝季末為下一年，季中為今年。
+- 等待：startWaiting（w.gm.unemployed，使用者聯盟 aiOnly，沒有事件與考核）。app 的 waitSeason：季中就把剩下的球季打完並設 w.gm.waited；季末則 startIdleSeason（休賽季用預設選擇）後打完一整季，recordIdleSeason 在 history 加 {unemployed:true}（聲望 +2，不算執掌球季）。之後 marketReason 為 waiting。render 遇到 unemployed 改畫 renderUnemployed。
+- 進入休賽季前，合約到期必須先做決定（marketDecided）；季末的挖角可以不理。
+- 聲望 v3.7 調整：(勝率−.5)×30、季後賽 2＋每輪 1、冠軍 5、(考核−60)×.05、每季往 30 回歸 6%（v3.5 約 8 季就到 100，太快）。穩定打進季後賽的標準難度 GM 約第 7 季到 55，常拿冠軍約 6 季到 75。
