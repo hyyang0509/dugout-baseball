@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import * as W from '../dist/world.js?v=38';
-import * as O from '../dist/offseason.js?v=38';
-import * as J from '../dist/jobs.js?v=38';
-import {careerOf, careerTotals} from '../dist/career.js?v=38';
-import {resolveEvent, positionsOf} from '../dist/engine.js?v=38';
-import {gmOf, ensureFront, setDifficulty, jobLost} from '../dist/front.js?v=38';
+import * as W from '../dist/world.js?v=39';
+import * as O from '../dist/offseason.js?v=39';
+import * as J from '../dist/jobs.js?v=39';
+import {careerOf, careerTotals} from '../dist/career.js?v=39';
+import {resolveEvent, positionsOf} from '../dist/engine.js?v=39';
+import {gmOf, ensureFront, setDifficulty, jobLost} from '../dist/front.js?v=39';
 
 const raw = id => JSON.parse(fs.readFileSync(new URL(`../dist/data/roster_${id.toLowerCase()}.json`, import.meta.url), 'utf8'));
 const bases = Object.fromEntries(W.LEAGUE_ORDER.map(id => [id, W.toWorldScale(id, raw(id))]));

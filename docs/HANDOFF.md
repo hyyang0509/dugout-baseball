@@ -169,3 +169,10 @@
 - 等待：startWaiting（w.gm.unemployed，使用者聯盟 aiOnly，沒有事件與考核）。app 的 waitSeason：季中就把剩下的球季打完並設 w.gm.waited；季末則 startIdleSeason（休賽季用預設選擇）後打完一整季，recordIdleSeason 在 history 加 {unemployed:true}（聲望 +2，不算執掌球季）。之後 marketReason 為 waiting。render 遇到 unemployed 改畫 renderUnemployed。
 - 進入休賽季前，合約到期必須先做決定（marketDecided）；季末的挖角可以不理。
 - 聲望 v3.7 調整：(勝率−.5)×30、季後賽 2＋每輪 1、冠軍 5、(考核−60)×.05、每季往 30 回歸 6%（v3.5 約 8 季就到 100，太快）。穩定打進季後賽的標準難度 GM 約第 7 季到 55，常拿冠軍約 6 季到 75。
+
+## v3.8 季後賽席次說明、打完球季、自訂非賣品
+
+- app.js rankNote()：首頁排名卡說明依 postseasonFormat（PLAYOFF_SPOTS）與 currentPicture，不再寫死前四名。
+- postseason.js teamAlive(po,id)：有種子、沒輸掉任何系列賽、尚無冠軍。engine.js userSeasonOver(s)：finished，或季後賽且 !teamAlive。nextDay 在 userSeasonOver 時不產生使用者球隊的事件、手感變化（AI 新聞照舊）。app 在季後賽且 userSeasonOver 時顯示「直接模擬到季末」（simulate(999)，遇事件、結束或解職照樣停）。
+- AI 非賣品（untouchables）：依球隊策略，爭冠 2 人、觀望 1 人（全隊交易價值最高）；重建 2 人（25 歲以下價值最高）。每天依戰績重算。
+- 使用者非賣品：s.userUntouchables（最多 USER_LOCK_MAX=3），userLocks 只回傳仍在本隊的人，setUserLock 檢查。findTradeProposal（AI 向使用者提案）與 tradeCounters（還價要求加人）排除這些球員；使用者自己的交易與釋出不受限。advanceSeason 帶到下一季。
