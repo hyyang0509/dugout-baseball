@@ -87,6 +87,13 @@ export function playoffPicture(format, order, halves = null) {
 const series = (key, label, high, low, need, pattern, adv = [0, 0]) => ({key, label, teams: [high, low], wins: [...adv], adv: [...adv], need, pattern, played: 0});
 export const seriesDone = x => x.wins[0] >= x.need || x.wins[1] >= x.need;
 export const seriesWinner = x => x.wins[0] >= x.need ? x.teams[0] : x.wins[1] >= x.need ? x.teams[1] : null;
+/** True while a team can still win the title: seeded, no lost series, no champion yet. */
+export function teamAlive(po, id) {
+  if (!po) return true;
+  if (po.champion || !po.seeds?.includes(id)) return false;
+  const lost = x => x.teams.includes(id) && seriesDone(x) && seriesWinner(x) !== id;
+  return !po.series.some(lost) && !(po.history || []).some(h => h.series.some(lost));
+}
 /** Home and away for the next game of a series. */
 export function seriesGame(x) {
   const high = (x.pattern[x.played] ?? x.pattern.at(-1)) === 'H';

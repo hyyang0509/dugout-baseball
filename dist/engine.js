@@ -1,7 +1,7 @@
 // DUGOUT simulation v4. Seeded randomness, browser-independent engine.
-import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=38';
+import {STORIES,STORY_BY_ID,RARITY_WEIGHT,RARITY_LABEL,traitsOf,TRAIT_LABELS,TRAIT_HINTS} from './stories.js?v=39';
 export {STORIES,RARITY_LABEL,TRAIT_LABELS,TRAIT_HINTS};
-import {formatFor,startPlayoffs,advancePlayoffs,seriesDone,seriesGame,migratePlayoffs,playoffPicture} from './postseason.js?v=38';
+import {formatFor,startPlayoffs,advancePlayoffs,seriesDone,seriesGame,migratePlayoffs,playoffPicture,teamAlive} from './postseason.js?v=39';
 export const VERSION=5;
 export const SEASON_GAMES=81;
 // v2.7: more stories, shown less often (was .40).
@@ -360,7 +360,8 @@ export {seriesGame,seriesDone};
 function recover(s,data){for(const p of data.players){const c=s.condition[p.id];c.energy=clamp(c.energy+(hasPitch(p)?18:c.lastPlayed===s.day-1?5:16),0,100);if(c.injury)c.injury--;if(c.formDays>0){c.formDays--;if(!c.formDays)c.form=0;}}}
 export function findTradeProposal(s,data,fromTeam,opponent){
  if(s.phase!=='regular'||s.day>=tradeDeadline(s))return null;
- const mine=rosterFor(s,data,fromTeam).filter(p=>!s.condition[p.id].injury),theirs=rosterFor(s,data,opponent).filter(p=>!s.condition[p.id].injury);
+ const userLocked=fromTeam===s.teamId?userLocks(s,data):[];
+ const mine=rosterFor(s,data,fromTeam).filter(p=>!s.condition[p.id].injury&&!userLocked.includes(p.id)),theirs=rosterFor(s,data,opponent).filter(p=>!s.condition[p.id].injury);
  if(!mine.length||!theirs.length)return null;
  const blocked=new Set(untouchables(s,data,opponent));
  // The receiving club ranks our players by its own strategy; keep some randomness.
@@ -424,6 +425,8 @@ export function resolveEvent(s,data,choice){
  addNews(s,{day:s.day,category:'decision',teamIds:[e.teamId||s.teamId],title:`處理結果：${e.title}`,text:e.choices[choice]+(e.options?'。'+e.options[choice].description:''),playerIds:e.participants||[e.player].filter(Boolean),fictional:e.type==='offfield'});
  s.eventLog.unshift({day:s.day,title:e.title,text:e.text,choice:e.choices[choice]+(e.options?'。'+e.options[choice].description:'')});s.eventLog=s.eventLog.slice(0,40);s.event=null;
 }
+/** The user's club has no games left this season (missed the playoffs or was eliminated). */
+export const userSeasonOver=s=>s.phase==='finished'||s.phase==='playoffs'&&!teamAlive(s.playoffs,s.teamId);
 export function nextDay(s,data,options={}){
  if(s.phase==='finished'||s.event)return [];
  recover(s,data);for(const club of Object.values(s.teams)){club.morale??=50;club.morale+=Math.sign(50-club.morale);}
@@ -445,7 +448,8 @@ export function nextDay(s,data,options={}){
  if(!s.aiOnly)for(const fn of HOOKS.daily)fn(s,data,results);
  s.history.unshift(...results.map(({batters,pitchers,lineups,...rest})=>rest));s.history=s.history.slice(0,180);
  if(s.phase!=='finished'){
-  if(!s.aiOnly){
+  // Once the user's club is out, the rest of the postseason plays without club events.
+  if(!s.aiOnly&&!userSeasonOver(s)){
   for(const p of rosterFor(s,data,s.teamId)){if(!s.condition[p.id].formDays&&random(s)<.025){s.condition[p.id].form=random(s)<.5?-1:1;s.condition[p.id].formDays=3+Math.floor(random(s)*3);}}
   const due=dueStory(s,data);
   if(due){s.event=due;publishEvent(s,due);}
@@ -572,6 +576,17 @@ export function strategyValue(s,data,teamId,p,excludeId){
  if(strategy==='contender')v=base*(age>=29?1.15:age<=24?.85:1)+salary*.25;
  else if(strategy==='rebuilding')v=base*(age<=25?1.3:age>=31?.6:1)-salary*.9;
  return Math.max(3,(v+termValue)*positionNeed(s,data,teamId,p,excludeId));
+}
+// Players the user marked as not for sale: AI clubs will not ask for them. Up to USER_LOCK_MAX.
+export const USER_LOCK_MAX=3;
+export function userLocks(s,data){const ids=new Set(rosterFor(s,data,s.teamId).map(p=>p.id));return (s.userUntouchables||[]).filter(id=>ids.has(id));}
+export function setUserLock(s,data,id,on){
+ const cur=userLocks(s,data);
+ if(!on){s.userUntouchables=cur.filter(x=>x!==id);return {ok:true};}
+ if(cur.includes(id))return {ok:true};
+ if(!rosterFor(s,data,s.teamId).some(p=>p.id===id))return {ok:false,reason:'只能把本隊球員設為非賣品。'};
+ if(cur.length>=USER_LOCK_MAX)return {ok:false,reason:`非賣品最多 ${USER_LOCK_MAX} 人，請先取消其他人。`};
+ s.userUntouchables=[...cur,id];return {ok:true};
 }
 export function untouchables(s,data,teamId){return memo(s,'untouchable',teamId,()=>computeUntouchables(s,data,teamId));}
 function computeUntouchables(s,data,teamId){
@@ -754,7 +769,7 @@ export function tradeCounters(s,data,input){
  const name=id=>data.players.find(p=>p.id===id).name,out=[];
  const same=settle({...offer,cash:Math.min(offer.cash,0)});if(same&&same.cash!==offer.cash)out.push({label:`照原組合${cashText(same)}`,offer:same});
  const pickBest=(list,build,label)=>{let best=null;for(const p of list){const o=settle(build(p));if(o&&(!best||o.cash<best.o.cash||o.cash===best.o.cash&&tradeValue(p,s)<tradeValue(best.p,s)))best={p,o};}if(best)out.push({label:label(best.p,best.o),offer:best.o});};
- const mine=rosterFor(s,data,my).filter(p=>!offer.give.includes(p.id)&&!s.condition[p.id].injury);
+ const mine=rosterFor(s,data,my).filter(p=>!offer.give.includes(p.id)&&!s.condition[p.id].injury&&!(my===s.teamId&&userLocks(s,data).includes(p.id)));
  if(offer.give.length<TRADE_MAX_PLAYERS)pickBest(mine,p=>({...offer,give:[...offer.give,p.id],cash:0}),(p,o)=>`對方要求再加上本隊的 ${p.name}${cashText(o)}`);
  if(offer.get.length>1)for(const id of offer.get){const o=settle({...offer,get:offer.get.filter(x=>x!==id),cash:0});if(o){out.push({label:`拿掉 ${name(id)}${cashText(o)}`,offer:o});break;}}
  const first=data.players.find(p=>p.id===offer.get[0]);if(!first)return out.slice(0,3);
@@ -1007,7 +1022,7 @@ export function advanceSeason(previous,base){
   }
  }
  const nextData={...base,players},next=makeSeason(nextData,old.teamId,old.rng);
- next.year=year;next.playerPool=players;next.createdAt=previous.createdAt;if(old.assistant)next.assistant={...old.assistant,hiredDay:0};for(const k of ['gm','board','fans','manager'])if(old[k])next[k]=old[k];
+ next.year=year;next.playerPool=players;next.createdAt=previous.createdAt;if(old.assistant)next.assistant={...old.assistant,hiredDay:0};for(const k of ['gm','board','fans','manager','userUntouchables'])if(old[k])next[k]=old[k];
  const ranked=standings(old),rank=ranked.findIndex(([id])=>id===old.teamId)+1;
  const leaders=Object.entries(old.batting).filter(([id])=>data.players.some(p=>p.id===id)).sort((a,b)=>b[1].hr-a[1].hr).slice(0,5).map(([id,stats])=>({id,name:data.players.find(p=>p.id===id).name,hr:stats.hr,avg:stats.ab?Number((stats.h/stats.ab).toFixed(3)):0}));
  if(old.teamId)next.career=[...(old.career||[]),{year:old.year||2026,champion:old.champion,teamId:old.teamId,rank,record:{w:old.teams[old.teamId].w,l:old.teams[old.teamId].l},games:seasonGames(old),standings:ranked.map(([id,t])=>({id,w:t.w,l:t.l,rs:t.rs,ra:t.ra})),leaders,endingCash:old.finance[old.teamId].cash}];
