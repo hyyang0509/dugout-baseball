@@ -430,7 +430,8 @@ html[data-theme=dark] .gm-field input,html[data-theme=dark] .gm-field select{bac
 .retired-top .save-buttons{margin-top:14px}
 .hall-legacy{margin:20px 20px 0}
 /* v3.7 GM job market */
-.market-panel .market-lead{margin:0 20px 10px}
+.market-panel .market-lead{margin:14px 20px 12px;line-height:1.7}
+.market-panel .empty.compact{padding:18px 20px 24px}
 .market-panel .save-buttons{margin:12px 20px 18px}
 .offer-row{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;margin:0 20px;padding:12px 0;border-top:1px solid var(--line)}
 .offer-row>div{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
@@ -441,3 +442,6 @@ html[data-theme=dark] .gm-field input,html[data-theme=dark] .gm-field select{bac
 .market-done{margin:8px 20px 18px;font-weight:600}
 .contract-line{margin:16px 20px 0;font-size:13px;display:flex;gap:6px;align-items:center}
 .idle-row td{opacity:.65}
+
+/* v3.8.1 mobile: long stat notes wrap inside their card */
+.stat-card{min-width:0}.stat-card p{white-space:normal;overflow-wrap:anywhere}
