@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {makeSeason, nextDay, resolveEvent} from '../dist/engine.js?v=36';
-import {DIFFICULTY, setDifficulty, canRaiseDifficulty, difficultyOf, ensureFront, gmOf, boardOf, jobLost, jobOffers, takeJob, midSeasonReview} from '../dist/front.js?v=36';
+import {makeSeason, nextDay, resolveEvent} from '../dist/engine.js?v=37';
+import {DIFFICULTY, setDifficulty, canRaiseDifficulty, difficultyOf, ensureFront, gmOf, boardOf, jobLost, jobOffers, takeJob, midSeasonReview} from '../dist/front.js?v=37';
 
 const base = JSON.parse(fs.readFileSync(new URL('../dist/data/roster_cpbl.json', import.meta.url), 'utf8'));
 const team = base.teams[0].id;

@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import * as C from '../dist/career.js?v=36';
-import {makeSeason, nextDay, resolveEvent} from '../dist/engine.js?v=36';
-import {setDifficulty, ensureFront, gmOf, jobLost, jobOffers, takeJob} from '../dist/front.js?v=36';
+import * as C from '../dist/career.js?v=37';
+import {makeSeason, nextDay, resolveEvent} from '../dist/engine.js?v=37';
+import {setDifficulty, ensureFront, gmOf, jobLost, jobOffers, takeJob} from '../dist/front.js?v=37';
 
 const base = JSON.parse(fs.readFileSync(new URL('../dist/data/roster_cpbl.json', import.meta.url), 'utf8'));
 const h = (year, o = {}) => ({year, teamId: 'cpbl:a', team: 'A 隊', league: 'CPBL', w: 41, l: 40, grade: 60, confidence: 60, champion: false, fired: false, difficulty: 'normal', playoffs: false, rounds: 0, budgetPct: .5, share: 1, titleIds: [], ...o});
@@ -12,35 +12,27 @@ function play(s, until = () => false) {
   return s;
 }
 
-test('GM names are cleaned and kept unique; the profile validates', () => {
-  const p = C.blankProfile();
-  assert.equal(C.addGm(p, '  阿明  ').name, '阿明');
-  assert.equal(C.addGm(p, '阿明').name, '阿明 (2)');
-  assert.equal(C.addGm(p, '').name, '無名 GM');
-  assert.equal(C.addGm(p, 'x'.repeat(30)).name.length, C.NAME_MAX);
-  assert.equal(C.normalizeProfile(JSON.parse(JSON.stringify(p))).gms.length, 4);
+// history is newest first, as front.js keeps it; list here is oldest first.
+const careerFrom = (list, w = {}) => C.careerOf({gm: {name: 'G', createdAt: '2026-11-24T00:00:00.000Z'}, createdAt: '2026-11-24T00:00:00.000Z', userLeague: 'CPBL', ...w}, [...list].reverse());
+
+test('a world is one GM career built from its own history', () => {
+  assert.equal(C.cleanName('  阿明  '), '阿明');
+  assert.equal(C.cleanName('x'.repeat(30)).length, C.NAME_MAX);
+  const w = {gm: {name: '阿明', createdAt: 'c'}, createdAt: '2027-01-01T00:00:00.000Z', userLeague: 'CPBL'};
+  const g = C.careerOf(w, [h(2028, {w: 50, l: 31, champion: true, playoffs: true, rounds: 2}), h(2027)]);
+  assert.equal(g.name, '阿明');
+  assert.deepEqual(g.seasons.map(e => e.year), [2027, 2028]);
+  assert.equal(w.worldId, 'w-2027-01-01T00:00:00.000Z', 'older worlds get an id from createdAt');
+  assert.equal(C.careerTotals(g).w, 91);
+  assert.equal(C.careerTotals(g).champions, 1);
+  assert.equal(C.careerOf({createdAt: 'x', userLeague: 'CPBL'}, []).name, '無名 GM');
+  // The v3.5 profile is still readable for keepsakes of replaced worlds.
+  assert.equal(C.normalizeProfile({kind: C.CAREER_KIND, gms: [{id: 'a', name: 'A', seasons: []}]}).gms.length, 1);
   assert.throws(() => C.normalizeProfile({kind: 'world'}), /生涯檔/);
 });
 
-test('syncing the same seasons twice never double-counts', () => {
-  const p = C.blankProfile(), g = C.addGm(p, 'GM');
-  const hist = [h(2028, {w: 50, l: 31, champion: true, playoffs: true, rounds: 2}), h(2027)];
-  assert.equal(C.syncWorld(p, g.id, 'w1', hist, 'CPBL'), true);
-  assert.equal(C.syncWorld(p, g.id, 'w1', hist, 'CPBL'), false);
-  assert.equal(g.seasons.length, 2);
-  assert.equal(C.careerTotals(g).w, 91);
-  assert.equal(C.careerTotals(g).champions, 1);
-  // A different world (a restart) adds its own seasons.
-  C.syncWorld(p, g.id, 'w2', [h(2027)], 'CPBL');
-  assert.equal(C.careerTotals(g).seasons, 3);
-  // Re-importing the same file merges nothing new.
-  const copy = JSON.parse(JSON.stringify(p));
-  assert.deepEqual(C.mergeProfiles(p, copy), {added: 0, seasons: 0});
-  const other = C.blankProfile(); assert.deepEqual(C.mergeProfiles(other, copy), {added: 1, seasons: 3});
-});
-
 test('reputation rises with winning, titles and difficulty, falls with firing, stays in 0..100', () => {
-  const rep = list => { const p = C.blankProfile(), g = C.addGm(p, 'G'); C.syncWorld(p, g.id, 'w', [...list].reverse(), 'CPBL'); return C.reputationOf(g); };
+  const rep = list => C.reputationOf(careerFrom(list));
   assert.ok(rep([h(2027, {w: 55, l: 26})]) > rep([h(2027, {w: 41, l: 40})]));
   assert.ok(rep([h(2027, {w: 41, l: 40})]) > rep([h(2027, {w: 25, l: 56})]));
   assert.ok(rep([h(2027, {champion: true, playoffs: true, rounds: 2})]) > rep([h(2027, {playoffs: true})]));
@@ -67,11 +59,9 @@ test('pay follows league ranges and the share of the season worked', () => {
 });
 
 test('timeline and achievements come from the records', () => {
-  const p = C.blankProfile(), g = C.addGm(p, 'G');
   const hist = [h(2027), h(2028, {fired: true, midseason: true, w: 15, l: 25}), h(2028, {teamId: 'cpbl:b', team: 'B 隊', joined: true, playoffs: true, w: 30, l: 11}),
     h(2029, {teamId: 'cpbl:b', team: 'B 隊', champion: true, playoffs: true, rounds: 2, difficulty: 'hell'}), h(2030, {teamId: 'cpbl:b', team: 'B 隊', champion: true, playoffs: true, rounds: 2})];
-  C.syncWorld(p, g.id, 'w', [...hist].reverse(), 'CPBL');
-  const st = C.stints(g);
+  const g = careerFrom(hist), st = C.stints(g);
   assert.deepEqual(st.map(x => [x.team, x.from, x.to, x.ended || '']), [['A 隊', 2027, 2028, '季中解職'], ['B 隊', 2028, 2030, '']]);
   const ids = C.achievements(g).map(a => a.id);
   for (const id of ['firstWin', 'firstPlayoffs', 'firstTitle', 'twoPeat', 'firefighter', 'comeback', 'hellChampion']) assert.ok(ids.includes(id), id);
@@ -96,10 +86,30 @@ test('a real season records league, playoffs and pay; a mid-season move splits t
   assert.ok(fired.w + fired.l + joined.w + joined.l <= games + 1, 'the two parts do not overlap');
   assert.ok(joined.w + joined.l < games * .7);
   assert.ok(joined.share > .3 && joined.share < .7 && fired.share > .3 && fired.share < .7);
-  const p = C.blankProfile(), g = C.addGm(p, 'G');
-  C.syncWorld(p, g.id, 'w', hist, 'CPBL');
+  const g = C.careerOf({gm: {name: 'G'}, createdAt: 'c', userLeague: 'CPBL'}, hist);
   const [lo, hi] = C.SALARY_RANGE.CPBL;
   for (const e of g.seasons) assert.ok(e.salary >= lo * e.share - 1000 && e.salary <= hi * e.share + 1000, `${e.salary}`);
   assert.equal(typeof joined.playoffs, 'boolean');
   assert.equal(C.stints(g).length, 2);
+});
+
+test('the keepsake image data summarises the career', async () => {
+  const {mementoData} = await import('../dist/memento.js?v=37');
+  const list = Array.from({length: 22}, (_, i) => h(2027 + i, {champion: i === 10, playoffs: i % 2 === 0, rounds: i === 10 ? 3 : 0, fired: i === 21}));
+  const d = mementoData({...careerFrom(list), retired: {year: 2048}}, {now: new Date('2048-11-01')});
+  assert.equal(d.name, 'G');
+  assert.equal(d.span, '2027–2048');
+  assert.equal(d.retired, '2048 年退休');
+  assert.equal(d.stats.length, 6);
+  assert.equal(d.rows.length, 18);
+  assert.equal(d.moreRows, 4);
+  assert.equal(d.rows[0].year, 2048, 'newest first');
+  assert.equal(d.rows[0].note, '解職');
+  assert.ok(d.rows.some(r => r.result === '總冠軍'));
+  assert.equal(d.repPath.length, 23);
+  assert.ok(d.achievements.some(a => a.startsWith('首冠')));
+  assert.match(d.footer, /遊戲紀錄/);
+  const empty = mementoData(careerFrom([]));
+  assert.equal(empty.span, '尚未完成球季');
+  assert.equal(empty.rows.length, 0);
 });

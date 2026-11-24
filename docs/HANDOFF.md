@@ -142,3 +142,12 @@
 - 匯出世界存檔時附 gmCareer（只含這位 GM）；匯入時先取出，再驗證世界，安裝成功後 mergeProfiles。生涯檔讀不開時 careerBlocked，不寫入、不匯入。
 - 舊存檔（沒有 w.gm）讀檔後跳出 name-gm 視窗：建立或延續 GM，已完成的球季一起記入；略過則記為「無名 GM」。
 - 介面：選隊畫面的 GM 名字／延續既有 GM（gmIdentity、chosenGm）；側欄「GM 名人堂」（page 'hall'，手機底部列不放，從董事會頁的 GM 生涯連過去）；選隊畫面右上角開 modal 'hall'。hallHTML 有 data-nolink，避免 GM 名字被當成球員連結。
+
+## v3.6 世界與 GM 綁定、紀念圖、退休
+
+- 一個世界就是一位 GM：w.gm={name,createdAt,retired?}。career.js 的 careerOf(w, gmOf(userSeason).history) 把歷史紀錄轉成 {name,createdAt,retired,seasons}，聲望、總計、時間軸、成就照舊推算。生涯不再另外儲存，save() 也不再同步。
+- v3.5 的 dugout.gm.v1 不寫入、不刪除。app 的 loadLegacyCareers() 開啟時讀一次，把名字不同於目前 GM、且有球季的 GM 列在「GM 生涯」頁的「舊版保存的 GM」，可下載他們的紀念圖。匯入 v3.5 匯出的存檔時，忽略其中的 gmCareer 欄位。
+- 新遊戲與「原隊重玩」都要輸入新的 GM 名字（restart-name 視窗，可先下載目前 GM 的紀念圖）；重新開始視窗也有「先下載生涯紀念圖」。
+- dist/memento.js：mementoData(gm)（純資料，可測）與 drawMemento(ctx,d,{draw})。先用 draw:false 量高度，再設定 canvas 高度後繪製；寬 1080px，每季紀錄最多 18 列（較早的顯示「另有 N 季」）。app 的 mementoImage 轉 PNG（檔名 bm27-gm-career-日期.png；中文檔名在部分瀏覽器會被丟掉）。紀念圖視窗顯示預覽圖（手機可長按儲存）；支援 Web Share 檔案分享的裝置多一個「分享或儲存到相簿」按鈕，其他用下載。
+- 退休：被解職時的選項多了「退休，結束生涯」。confirm-retire 寫入 w.gm.retired={year,day,teamId} 並 saveNow；render() 遇到 retired 改畫 renderRetired()（唯讀，只能看生涯、下載紀念圖、開新遊戲），simulate 也會擋下。
+- 「GM 名人堂」改名為「GM 生涯」（page 'hall'），只顯示目前 GM；多 GM 排名、生涯檔匯出／匯入都已移除。

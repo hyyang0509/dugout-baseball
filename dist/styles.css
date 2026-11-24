@@ -421,3 +421,11 @@ html[data-theme=dark] .gm-field input,html[data-theme=dark] .gm-field select{bac
 .hall-buttons{margin-top:10px}
 .hall .load-problem{color:var(--red)}
 .hall-panel .hall-detail,.hall-panel .hall-note,.hall-panel .hall-buttons,.hall-panel>.hall>.empty,.hall-panel .load-problem{margin-inline:20px}.hall-panel .hall-buttons{margin-bottom:20px}.hall-panel .hall-detail{padding-top:18px}
+/* v3.6 keepsake image, retirement */
+.memento-preview{max-height:62vh;overflow:auto;border-radius:10px;border:1px solid var(--line);margin:8px 0}
+.memento-preview img{display:block;width:100%;height:auto}
+.retired-main{max-width:1100px;margin:0 auto;padding:16px}
+.retired-top{padding:24px 20px 4px}
+.retired-top h1{margin:6px 0}
+.retired-top .save-buttons{margin-top:14px}
+.hall-legacy{margin:20px 20px 0}
