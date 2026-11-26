@@ -109,7 +109,7 @@ def write(league,teams,players):
         for i,p in enumerate(pitchers):p['role']='SP' if i<5 else 'RP';p['ratings']['stamina']=60 if i<5 else 40
     result=dict(league=league,season=2026,generated_at=STAMP,teams=teams,players=players,
         snapshot_date=STAMP[:10],ratings_note='能力為遊戲平衡估計，尚未依逐季成績校準；非官方球探評分。',
-        positions_note='日職內外野細分守位與投手先發／後援分工為遊戲估計。',
+        positions_note=('日職內外野細分守位與' if league=='NPB' else '')+'投手先發／後援分工為遊戲估計。',
         name_note='日本球員保留漢字；片假名姓名使用遊戲中文音譯，非官方譯名。',
         source_note='官方名單快照；含中職一、二軍，日職支配下登錄球員。非即時名單。')
     (OUT/f'roster_{league.lower()}.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')

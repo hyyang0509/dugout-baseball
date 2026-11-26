@@ -119,3 +119,13 @@ python data_pipeline/enrich_asia_ratings.py --leagues cpbl --refresh
 - `update_kbo_wiki.py`：2026 季後名單。讀取韓文維基百科「틀:<球隊> 명단」模板與新球員條目（MediaWiki API，約每 3 秒一次請求，快取在 `.cache/wiki`），沿用 2025 版的能力，新球員能力為估計值，產生 `dist/data/roster_kbo.json`。執行：`python data_pipeline/update_kbo_wiki.py`。
 - KBO 官網（koreabaseball.com）的 robots.txt 禁止未經事先核准的自動收集、爬取與複製，不要寫程式抓官網。
 - 更新名單後，舊快照要保留並登記在 `dist/leagues.js` 的 `LEGACY_ROSTERS`，舊存檔才讀得到。
+
+## 跨聯盟重複檢查（`check_cross_league.mjs`）
+
+各聯盟名單更新日期不同，換聯盟的球員可能同時留在兩份名單裡。更新任何一份名單後執行：
+
+```bash
+node data_pipeline/check_cross_league.mjs
+```
+
+程式列出不同聯盟中生日相同、出身相同，且至少一方是洋將的配對。名字橫跨英文、片假名、韓文與中文音譯，無法自動比對，所以每組都要人工確認一次，記到 `cross_league_reviewed.json`：同一人放 `duplicates`（之後更新較舊的名單時移除），不同人放 `different`。還有沒確認的配對時，程式結束碼為 1，`npm test` 的 tests/cross-league.test.js 也會失敗。

@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {makeSeason,nextDay,resolveEvent,teamOf,ovr,hasBat,hasPitch,primaryPosition} from '../dist/engine.js?v=40';
+import {makeSeason,nextDay,resolveEvent,teamOf,ovr,hasBat,hasPitch,primaryPosition} from '../dist/engine.js?v=41';
 import {warContext,batWar,pitWar,playerWar,statRows,POS_ADJ,fmtWar} from '../dist/stats.js';
 const data=JSON.parse(fs.readFileSync(new URL('../dist/data/roster_cpbl.json',import.meta.url)));
 const byId=Object.fromEntries(data.players.map(p=>[p.id,p]));

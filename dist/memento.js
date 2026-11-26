@@ -1,7 +1,7 @@
 // GM career keepsake image (v3.6). mementoData() turns a career (career.js) into plain
 // rows; drawMemento() paints them on a canvas the app turns into a PNG. Drawing uses only
 // the 2D context API, so the layout is the same on phones and computers.
-import {careerTotals, reputationPath, reputationLevel, stints, achievements, formatMoney, DIFFICULTY_LABEL, LEAGUE_SHORT} from './career.js?v=40';
+import {careerTotals, reputationPath, reputationLevel, stints, achievements, formatMoney, DIFFICULTY_LABEL, LEAGUE_SHORT} from './career.js?v=41';
 
 export const MEMENTO_WIDTH = 1080;
 const MAX_SEASON_ROWS = 18;

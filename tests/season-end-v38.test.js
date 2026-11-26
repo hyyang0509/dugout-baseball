@@ -1,8 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {makeSeason,nextDay,userSeasonOver,userLocks,setUserLock,USER_LOCK_MAX,findTradeProposal,rosterFor,tradeCounters,advanceSeason} from '../dist/engine.js?v=40';
-import {teamAlive,startPlayoffs,seriesDone,seriesGame,advancePlayoffs} from '../dist/postseason.js?v=40';
+import {makeSeason,nextDay,userSeasonOver,userLocks,setUserLock,USER_LOCK_MAX,findTradeProposal,rosterFor,tradeCounters,advanceSeason} from '../dist/engine.js?v=41';
+import {teamAlive,startPlayoffs,seriesDone,seriesGame,advancePlayoffs} from '../dist/postseason.js?v=41';
 const load=l=>JSON.parse(fs.readFileSync(new URL(`../dist/data/roster_${l}.json`,import.meta.url)));
 
 test('teamAlive: unseeded teams and series losers are out; byes and winners stay alive',()=>{

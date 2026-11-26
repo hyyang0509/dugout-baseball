@@ -9,7 +9,7 @@
 
 ## 存檔與引擎
 
-- KEY：dugout.save.v1；engine VERSION=5。
+- 世界存檔鍵：dugout.world.v1（v3.3 起在 IndexedDB，見 v3.3）；dugout.save.v1 等是 v0.7 以前的單一聯盟存檔，不再使用。engine VERSION=5。
 - year/career/playerPool/offseason 保存年度演化；讀取時先 seasonData(base,save)，再 migrateSeason。
 - advanceSeason 克隆舊存檔後演化。重新開局必須使用獨立的 baseData 初始名單。
 - 世界存檔用 world.packWorld 寫入：playerPool 中與原始快照相同的靜態欄位（STATIC_KEYS：來源網址、原文姓名、資料來源、投打、背號等）不寫入，restoreWorld 一開始以 unpackPools 依球員 id 從目前 bases 補回。新增會在比賽中改變的欄位時，不可放進 STATIC_KEYS。非使用者聯盟 trimAI 時清掉 s.offseason（年度變化清單只給使用者聯盟看）。
@@ -28,7 +28,9 @@
 1. 舊網址存檔移轉，保留原進度並驗證內容。
 2. 帳號、雲端存檔、版本衝突保護與備份。玩家存檔不可提交 GitHub。
 3. 多聯盟統一球員 ID、資料格式、賽制與能力尺度，再做跨聯盟交流。
-4. CPBL/NPB 官方快照已加入並可獨立開季；KBO 與跨聯盟尚未實作。能力暫為遊戲平衡值，詳見 README。
+4. 跨聯盟重複球員：韓職 2026 名單的 崔斯坦（Tristan Beck）、華森（Troy Watson）、福谷浩司，仍在較舊的美職、日職快照裡（README「韓職資料」）。已登記在 data_pipeline/cross_league_reviewed.json 的 duplicates。下次更新美職／日職名單時一併處理；直接從名單刪除會讓已有 playerPool 的存檔補不回 STATIC_KEYS（投打等），舊名單也要依 LEGACY_ROSTERS 保留。
+
+四聯盟（美職、日職、韓職、中職）都已在同一個世界運作；跨聯盟交流賽尚未實作。日職、中職能力已依成績換算（v2.x，enrich_asia_ratings.py），詳見 README。
 
 初始名單為 2026/10/30 MLB 快照，非即時。新人均為虛構。v1.6 起投手統計含自責分（ERA）、勝敗、救援、中繼與救援失敗；舊存檔的既有失分視為自責分，勝敗等從升級當天（state.decisionStatsFrom）起計。投打統計含季後賽，團隊勝負只計例行賽。
 
@@ -176,3 +178,11 @@
 - postseason.js teamAlive(po,id)：有種子、沒輸掉任何系列賽、尚無冠軍。engine.js userSeasonOver(s)：finished，或季後賽且 !teamAlive。nextDay 在 userSeasonOver 時不產生使用者球隊的事件、手感變化（AI 新聞照舊）。app 在季後賽且 userSeasonOver 時顯示「直接模擬到季末」（simulate(999)，遇事件、結束或解職照樣停）。
 - AI 非賣品（untouchables）：依球隊策略，爭冠 2 人、觀望 1 人（全隊交易價值最高）；重建 2 人（25 歲以下價值最高）。每天依戰績重算。
 - 使用者非賣品：s.userUntouchables（最多 USER_LOCK_MAX=3），userLocks 只回傳仍在本隊的人，setUserLock 檢查。findTradeProposal（AI 向使用者提案）與 tradeCounters（還價要求加人）排除這些球員；使用者自己的交易與釋出不受限。advanceSeason 帶到下一季。
+
+## v3.9 維護
+
+- tests/asset-version.test.js：dist（js、index.html）與 tests 的 `?v=N` 必須全部相同；dist 的模組 import、fetch、樣式表都要帶 `?v=`；頁尾版本（app.js 的 `<span>vX.Y · …`）要和 CHANGELOG 最新一筆相符（修補版 v3.8.1 可以顯示 v3.8），那一筆也要寫「資產版本號 v=N」。換版本時：dist 與 tests 的 `?v=` 一起改、更新頁尾、CHANGELOG 加一筆。tests 的版本號必須和 dist 相同，否則 Node 會載入兩份模組。
+- 跨聯盟重複檢查：data_pipeline/check_cross_league.mjs 找出不同聯盟中生日相同、出身（world.originOf）相同、且至少一方是洋將的配對；名字無法跨語言比對，所以每組都要人工確認一次，記在 cross_league_reviewed.json（duplicates 或 different）。tests/cross-league.test.js 遇到沒確認過的配對就失敗。
+- styles.css：有視窗（#modal-root .modal-backdrop）時，提示訊息 #toast 改到畫面上方（CSS :has），不再蓋住視窗底部的文字。不支援 :has 的舊瀏覽器維持原位置。
+- fetch_asia_rosters.py 的 positions_note：中職不再寫「日職內外野細分守位」；roster_cpbl.json 的同一欄位同步修正（只改說明文字，generated_at 不變，不影響存檔）。
+- 資產版本號 v=41。
