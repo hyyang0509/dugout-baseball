@@ -9,7 +9,7 @@
 
 ## 存檔與引擎
 
-- KEY：dugout.save.v1；engine VERSION=5。
+- 世界存檔鍵：dugout.world.v1（v3.3 起在 IndexedDB，見 v3.3、v3.9）；dugout.save.v1 等是 v0.7 以前的單一聯盟存檔，不再使用。engine VERSION=5。
 - year/career/playerPool/offseason 保存年度演化；讀取時先 seasonData(base,save)，再 migrateSeason。
 - advanceSeason 克隆舊存檔後演化。重新開局必須使用獨立的 baseData 初始名單。
 - 世界存檔用 world.packWorld 寫入：playerPool 中與原始快照相同的靜態欄位（STATIC_KEYS：來源網址、原文姓名、資料來源、投打、背號等）不寫入，restoreWorld 一開始以 unpackPools 依球員 id 從目前 bases 補回。新增會在比賽中改變的欄位時，不可放進 STATIC_KEYS。非使用者聯盟 trimAI 時清掉 s.offseason（年度變化清單只給使用者聯盟看）。
@@ -26,9 +26,11 @@
 ## 下一步
 
 1. 舊網址存檔移轉，保留原進度並驗證內容。
-2. 帳號、雲端存檔、版本衝突保護與備份。玩家存檔不可提交 GitHub。
+2. 帳號、雲端存檔、版本衝突保護。玩家存檔不可提交 GitHub。（同一瀏覽器內的自動備份已於 v3.9 完成。）
 3. 多聯盟統一球員 ID、資料格式、賽制與能力尺度，再做跨聯盟交流。
-4. CPBL/NPB 官方快照已加入並可獨立開季；KBO 與跨聯盟尚未實作。能力暫為遊戲平衡值，詳見 README。
+4. 跨聯盟重複球員：韓職 2026 名單的 崔斯坦（Tristan Beck）、華森（Troy Watson）、福谷浩司，仍在較舊的美職、日職快照裡（README「韓職資料」）。下次更新美職／日職名單時一併處理；直接從名單刪除會讓已有 playerPool 的存檔補不回 STATIC_KEYS（投打等），舊名單也要依 LEGACY_ROSTERS 保留。
+
+四聯盟（美職、日職、韓職、中職）都已在同一個世界運作；跨聯盟交流賽尚未實作。日職、中職能力已依成績換算（v2.x，enrich_asia_ratings.py），詳見 README。
 
 初始名單為 2026/10/30 MLB 快照，非即時。新人均為虛構。v1.6 起投手統計含自責分（ERA）、勝敗、救援、中繼與救援失敗；舊存檔的既有失分視為自責分，勝敗等從升級當天（state.decisionStatsFrom）起計。投打統計含季後賽，團隊勝負只計例行賽。
 
@@ -176,3 +178,11 @@
 - postseason.js teamAlive(po,id)：有種子、沒輸掉任何系列賽、尚無冠軍。engine.js userSeasonOver(s)：finished，或季後賽且 !teamAlive。nextDay 在 userSeasonOver 時不產生使用者球隊的事件、手感變化（AI 新聞照舊）。app 在季後賽且 userSeasonOver 時顯示「直接模擬到季末」（simulate(999)，遇事件、結束或解職照樣停）。
 - AI 非賣品（untouchables）：依球隊策略，爭冠 2 人、觀望 1 人（全隊交易價值最高）；重建 2 人（25 歲以下價值最高）。每天依戰績重算。
 - 使用者非賣品：s.userUntouchables（最多 USER_LOCK_MAX=3），userLocks 只回傳仍在本隊的人，setUserLock 檢查。findTradeProposal（AI 向使用者提案）與 tradeCounters（還價要求加人）排除這些球員；使用者自己的交易與釋出不受限。advanceSeason 帶到下一季。
+
+## v3.9 存檔備份（快照）
+
+- storage.js：createSaveStore 多了 snapshot(text,{kind,label,mark})、snapshots()、readSnapshot(slot)。快照存在同一個 IndexedDB 物件倉：`<key>.snap.<kind>.<n>`，索引在 `<key>.snaps`（[{slot,kind,label,mark,savedAt,at,seq,size,raw}]，seq 遞增，snapshots() 依 seq 由新到舊）。SNAPSHOT_KEEP：auto 3、replace 2，滿了就換掉同種類最舊的一份。寫入後讀回比對一致才登記進索引；先把舊項目從索引拿掉再覆寫，所以索引不會指到內容不符的資料。快照依序執行（snapChain），不會同時改索引。沒有 IndexedDB 時不做快照（localStorage 空間不夠）。主存檔紀錄完全不受影響，任何快照失敗都回傳 null，不擋存檔。
+- app.js：save()／saveNow() 成功後呼叫 autoSnapshot：snapMark（worldId｜聯盟｜年｜階段｜floor(day/SNAP_DAYS)，SNAP_DAYS=15）和上一份 auto 不同時留一份。載入時 refreshSnaps 從最新的 auto 快照取回 mark，避免每次開啟都多存一份。
+- installSeason(nextWorld, why) 在換掉目前世界前呼叫 keepBeforeReplace（kind 'replace'，標籤如「進入下一季前 · 樂天桃猿 2027 季末」）；confirm-reset 也會先留一份。開新遊戲（沒有目前世界）不會留。
+- 還原：modal 'snapshots' 列出備份 → openSnapshot 走和匯入檔案相同的 openSave（先補舊名單 playerPool，再 restoreWorld）→ offerWorld：有目前世界時顯示 import-confirm（summary.restore=true），確認後 installSeason(w,'還原備份前')。沒有世界時（選隊畫面）直接安裝。
+- 資產版本號 v=41（dist 與 tests 的 import 一起改；tests 的版本號必須和 dist 相同，否則 Node 會載入兩份模組）。

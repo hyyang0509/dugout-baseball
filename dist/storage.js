@@ -6,8 +6,13 @@
 //   one with the newer savedAt wins.
 // - An IndexedDB save that cannot be decoded is an error, never "no save".
 // - Writes are coalesced: while one write runs, only the newest pending text is written next.
+// - Snapshots (v3.9): extra copies under their own keys (`<key>.snap.<kind>.<n>`) with an
+//   index at `<key>.snaps`, so a bad write, a restart or an import can be undone. IndexedDB
+//   only; the main save record is never touched by them.
 // Backends are injectable so tests can run without a browser.
 export const DB_NAME = 'dugout', DB_STORE = 'saves';
+/** How many snapshots each kind keeps: 'auto' every few game days, 'replace' before a save is replaced. */
+export const SNAPSHOT_KEEP = {auto: 3, replace: 2};
 
 export class SaveReadError extends Error {}
 
@@ -152,7 +157,56 @@ export function createSaveStore({key, idb = idbBackend(), local = localBackend()
     return running;
   }
 
-  return {load, save, busy: () => !!running, info: () => info, flush: () => running || Promise.resolve(null)};
+  const indexKey = key + '.snaps';
+  async function snapshotIndex() {
+    if (!idb) return [];
+    const list = await idb.get(indexKey);
+    return Array.isArray(list) ? list.filter(x => x && x.slot && SNAPSHOT_KEEP[x.kind]) : [];
+  }
+  /** Newest first: [{slot, kind, label, mark, savedAt, at, seq, size, raw}]. [] without IndexedDB or on error. */
+  async function snapshots() {
+    try { return (await snapshotIndex()).sort((a, b) => (b.seq || 0) - (a.seq || 0)); } catch (e) { return []; }
+  }
+  /**
+   * Keeps a copy of text as a snapshot of the given kind, replacing that kind's oldest one.
+   * The copy is read back before the index points to it. Resolves the entry, or null when it
+   * could not be kept (a snapshot never blocks or breaks the main save).
+   */
+  let snapChain = Promise.resolve();
+  function snapshot(text, opts) {
+    // One at a time, so two snapshots never edit the index together.
+    const run = snapChain.then(() => takeSnapshot(text, opts));
+    snapChain = run.catch(() => null);
+    return run;
+  }
+  async function takeSnapshot(text, {kind = 'auto', label = '', mark = ''} = {}) {
+    if (!idb || !SNAPSHOT_KEEP[kind] || typeof text !== 'string') return null;
+    try {
+      const list = await snapshotIndex(), mine = list.filter(x => x.kind === kind);
+      let n = 0;
+      if (mine.length >= SNAPSHOT_KEEP[kind]) n = +mine.sort((a, b) => (a.seq || 0) - (b.seq || 0))[0].slot.split('.').pop();
+      else while (mine.some(x => x.slot === `${kind}.${n}`)) n++;
+      const slot = `${kind}.${n}`, rec = await encodeRecord(text);
+      // Drop the old entry first, so the index never names a slot that holds other data.
+      const rest = list.filter(x => x.slot !== slot);
+      await idb.put(indexKey, rest);
+      await idb.put(`${key}.snap.${slot}`, rec);
+      if (await decodeRecord(await idb.get(`${key}.snap.${slot}`)) !== text) return null;
+      const seq = list.reduce((m, x) => Math.max(m, x.seq || 0), 0) + 1;
+      const entry = {slot, kind, label: String(label), mark: String(mark), savedAt: rec.savedAt, at: new Date().toISOString(), seq, size: rec.size, raw: rec.raw};
+      await idb.put(indexKey, [...rest, entry]);
+      return entry;
+    } catch (e) { return null; }
+  }
+  /** The JSON text of a snapshot; throws SaveReadError when it is missing or cannot be decoded. */
+  async function readSnapshot(slot) {
+    if (!idb) throw new SaveReadError('這個瀏覽器沒有備份。');
+    const rec = await idb.get(`${key}.snap.${slot}`);
+    if (rec == null) throw new SaveReadError('找不到這份備份。');
+    return decodeRecord(rec);
+  }
+
+  return {load, save, snapshot, snapshots, readSnapshot, busy: () => !!running, info: () => info, flush: () => running || Promise.resolve(null)};
 }
 
 export function formatBytes(n) {

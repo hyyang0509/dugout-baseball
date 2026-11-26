@@ -1,12 +1,12 @@
 // GM job market (v3.7): GM contracts, offers by reputation, moving to another club or league,
 // and waiting out a season without a club. Offers are seeded by world, year and situation,
 // so reloading never rerolls them. The market lives on the user season (s.gmMarket).
-import {LEAGUE_ORDER, LEAGUE_NAME, userSeason, worldDatas, trimAI, finishWorld} from './world.js?v=40';
-import {addNews, idHash} from './engine.js?v=40';
-import {teamReport} from './gm.js?v=40';
-import {gmOf, takeJob, difficultyInfo, jobLost} from './front.js?v=40';
-import {careerOf, reputationOf, salaryForBudget, worldIdOf} from './career.js?v=40';
-import {startOffseason, completeOffseason} from './offseason.js?v=40';
+import {LEAGUE_ORDER, LEAGUE_NAME, userSeason, worldDatas, trimAI, finishWorld} from './world.js?v=41';
+import {addNews, idHash} from './engine.js?v=41';
+import {teamReport} from './gm.js?v=41';
+import {gmOf, takeJob, difficultyInfo, jobLost} from './front.js?v=41';
+import {careerOf, reputationOf, salaryForBudget, worldIdOf} from './career.js?v=41';
+import {startOffseason, completeOffseason} from './offseason.js?v=41';
 
 export const LEAGUE_LEVEL = {CPBL: 0, KBO: 1, NPB: 2, MLB: 3};
 /** Share of the remaining GM salary the new club pays the old one when hiring a GM under contract. */

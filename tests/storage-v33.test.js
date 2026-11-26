@@ -124,3 +124,39 @@ test('a real world save compresses well and restores from the store', async () =
   assert.equal(restored.teamId, w.teamId);
   assert.equal(restored.savedAt, w.savedAt);
 });
+
+test('snapshots: each kind keeps its newest copies, oldest replaced first, main save untouched', async () => {
+  const idb = memIdb(), store = createSaveStore({key: KEY, idb, local: memLocal()});
+  const main = text('2027-04-01T00:00:00.000Z', 'main');
+  await store.save(main);
+  for (let i = 1; i <= 5; i++) assert.ok(await store.snapshot(text(`2027-04-0${i}T00:00:00.000Z`, 'a' + i), {kind: 'auto', label: 'auto ' + i}));
+  await store.snapshot(text('2027-05-01T00:00:00.000Z', 'r1'), {kind: 'replace', label: 'before restart'});
+  const list = await store.snapshots();
+  assert.deepEqual(list.map(x => x.label), ['before restart', 'auto 5', 'auto 4', 'auto 3']);
+  assert.equal(await store.readSnapshot(list[1].slot), text('2027-04-05T00:00:00.000Z', 'a5'));
+  assert.equal(await store.readSnapshot(list.find(x => x.kind === 'replace').slot), text('2027-05-01T00:00:00.000Z', 'r1'));
+  assert.equal(list[1].savedAt, '2027-04-05T00:00:00.000Z');
+  assert.equal(await decodeRecord(idb.map.get(KEY)), main);
+  assert.equal((await store.load()).text, main);
+});
+
+test('snapshots never break saving: no IndexedDB, failed writes and bad reads', async () => {
+  const noIdb = createSaveStore({key: KEY, idb: null, local: memLocal()});
+  assert.equal(await noIdb.snapshot(text('x')), null);
+  assert.deepEqual(await noIdb.snapshots(), []);
+  await assert.rejects(noIdb.readSnapshot('auto.0'), SaveReadError);
+  const down = createSaveStore({key: KEY, idb: memIdb({fail: true}), local: memLocal()});
+  assert.equal(await down.snapshot(text('x')), null);
+  assert.deepEqual(await down.snapshots(), []);
+  // A copy that reads back differently is not listed.
+  const idb = memIdb(), store = createSaveStore({key: KEY, idb, local: memLocal()});
+  const get = idb.get;
+  idb.get = async k => k.includes('.snap.') ? encodeRecord('other') : get(k);
+  assert.equal(await store.snapshot(text('2027-04-01T00:00:00.000Z')), null);
+  idb.get = get;
+  assert.deepEqual(await store.snapshots(), []);
+  await assert.rejects(store.readSnapshot('auto.9'), SaveReadError);
+  // Concurrent snapshots keep a consistent index.
+  await Promise.all([1, 2, 3, 4].map(i => store.snapshot(text(`2027-04-0${i}T00:00:00.000Z`), {label: 'c' + i})));
+  assert.deepEqual((await store.snapshots()).map(x => x.label), ['c4', 'c3', 'c2']);
+});
