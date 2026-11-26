@@ -9,7 +9,7 @@
 
 ## 存檔與引擎
 
-- 世界存檔鍵：dugout.world.v1（v3.3 起在 IndexedDB，見 v3.3、v3.9）；dugout.save.v1 等是 v0.7 以前的單一聯盟存檔，不再使用。engine VERSION=5。
+- 世界存檔鍵：dugout.world.v1（v3.3 起在 IndexedDB，見 v3.3）；dugout.save.v1 等是 v0.7 以前的單一聯盟存檔，不再使用。engine VERSION=5。
 - year/career/playerPool/offseason 保存年度演化；讀取時先 seasonData(base,save)，再 migrateSeason。
 - advanceSeason 克隆舊存檔後演化。重新開局必須使用獨立的 baseData 初始名單。
 - 世界存檔用 world.packWorld 寫入：playerPool 中與原始快照相同的靜態欄位（STATIC_KEYS：來源網址、原文姓名、資料來源、投打、背號等）不寫入，restoreWorld 一開始以 unpackPools 依球員 id 從目前 bases 補回。新增會在比賽中改變的欄位時，不可放進 STATIC_KEYS。非使用者聯盟 trimAI 時清掉 s.offseason（年度變化清單只給使用者聯盟看）。
@@ -26,9 +26,9 @@
 ## 下一步
 
 1. 舊網址存檔移轉，保留原進度並驗證內容。
-2. 帳號、雲端存檔、版本衝突保護。玩家存檔不可提交 GitHub。（同一瀏覽器內的自動備份已於 v3.9 完成。）
+2. 帳號、雲端存檔、版本衝突保護與備份。玩家存檔不可提交 GitHub。
 3. 多聯盟統一球員 ID、資料格式、賽制與能力尺度，再做跨聯盟交流。
-4. 跨聯盟重複球員：韓職 2026 名單的 崔斯坦（Tristan Beck）、華森（Troy Watson）、福谷浩司，仍在較舊的美職、日職快照裡（README「韓職資料」）。下次更新美職／日職名單時一併處理；直接從名單刪除會讓已有 playerPool 的存檔補不回 STATIC_KEYS（投打等），舊名單也要依 LEGACY_ROSTERS 保留。
+4. 跨聯盟重複球員：韓職 2026 名單的 崔斯坦（Tristan Beck）、華森（Troy Watson）、福谷浩司，仍在較舊的美職、日職快照裡（README「韓職資料」）。已登記在 data_pipeline/cross_league_reviewed.json 的 duplicates。下次更新美職／日職名單時一併處理；直接從名單刪除會讓已有 playerPool 的存檔補不回 STATIC_KEYS（投打等），舊名單也要依 LEGACY_ROSTERS 保留。
 
 四聯盟（美職、日職、韓職、中職）都已在同一個世界運作；跨聯盟交流賽尚未實作。日職、中職能力已依成績換算（v2.x，enrich_asia_ratings.py），詳見 README。
 
@@ -179,10 +179,10 @@
 - AI 非賣品（untouchables）：依球隊策略，爭冠 2 人、觀望 1 人（全隊交易價值最高）；重建 2 人（25 歲以下價值最高）。每天依戰績重算。
 - 使用者非賣品：s.userUntouchables（最多 USER_LOCK_MAX=3），userLocks 只回傳仍在本隊的人，setUserLock 檢查。findTradeProposal（AI 向使用者提案）與 tradeCounters（還價要求加人）排除這些球員；使用者自己的交易與釋出不受限。advanceSeason 帶到下一季。
 
-## v3.9 存檔備份（快照）
+## v3.9 維護
 
-- storage.js：createSaveStore 多了 snapshot(text,{kind,label,mark})、snapshots()、readSnapshot(slot)。快照存在同一個 IndexedDB 物件倉：`<key>.snap.<kind>.<n>`，索引在 `<key>.snaps`（[{slot,kind,label,mark,savedAt,at,seq,size,raw}]，seq 遞增，snapshots() 依 seq 由新到舊）。SNAPSHOT_KEEP：auto 3、replace 2，滿了就換掉同種類最舊的一份。寫入後讀回比對一致才登記進索引；先把舊項目從索引拿掉再覆寫，所以索引不會指到內容不符的資料。快照依序執行（snapChain），不會同時改索引。沒有 IndexedDB 時不做快照（localStorage 空間不夠）。主存檔紀錄完全不受影響，任何快照失敗都回傳 null，不擋存檔。
-- app.js：save()／saveNow() 成功後呼叫 autoSnapshot：snapMark（worldId｜聯盟｜年｜階段｜floor(day/SNAP_DAYS)，SNAP_DAYS=15）和上一份 auto 不同時留一份。載入時 refreshSnaps 從最新的 auto 快照取回 mark，避免每次開啟都多存一份。
-- installSeason(nextWorld, why) 在換掉目前世界前呼叫 keepBeforeReplace（kind 'replace'，標籤如「進入下一季前 · 樂天桃猿 2027 季末」）；confirm-reset 也會先留一份。開新遊戲（沒有目前世界）不會留。
-- 還原：modal 'snapshots' 列出備份 → openSnapshot 走和匯入檔案相同的 openSave（先補舊名單 playerPool，再 restoreWorld）→ offerWorld：有目前世界時顯示 import-confirm（summary.restore=true），確認後 installSeason(w,'還原備份前')。沒有世界時（選隊畫面）直接安裝。
-- 資產版本號 v=41（dist 與 tests 的 import 一起改；tests 的版本號必須和 dist 相同，否則 Node 會載入兩份模組）。
+- tests/asset-version.test.js：dist（js、index.html）與 tests 的 `?v=N` 必須全部相同；dist 的模組 import、fetch、樣式表都要帶 `?v=`；頁尾版本（app.js 的 `<span>vX.Y · …`）要和 CHANGELOG 最新一筆相符（修補版 v3.8.1 可以顯示 v3.8），那一筆也要寫「資產版本號 v=N」。換版本時：dist 與 tests 的 `?v=` 一起改、更新頁尾、CHANGELOG 加一筆。tests 的版本號必須和 dist 相同，否則 Node 會載入兩份模組。
+- 跨聯盟重複檢查：data_pipeline/check_cross_league.mjs 找出不同聯盟中生日相同、出身（world.originOf）相同、且至少一方是洋將的配對；名字無法跨語言比對，所以每組都要人工確認一次，記在 cross_league_reviewed.json（duplicates 或 different）。tests/cross-league.test.js 遇到沒確認過的配對就失敗。
+- styles.css：有視窗（#modal-root .modal-backdrop）時，提示訊息 #toast 改到畫面上方（CSS :has），不再蓋住視窗底部的文字。不支援 :has 的舊瀏覽器維持原位置。
+- fetch_asia_rosters.py 的 positions_note：中職不再寫「日職內外野細分守位」；roster_cpbl.json 的同一欄位同步修正（只改說明文字，generated_at 不變，不影響存檔）。
+- 資產版本號 v=41。

@@ -1,0 +1,62 @@
+{
+ "note": "node data_pipeline/check_cross_league.mjs 列出的跨聯盟候選（同生日、同出身、至少一方是洋將）逐一確認後記在這裡。duplicates：同一人，下次更新較舊的名單時移除（舊名單要依 leagues.js 的 LEGACY_ROSTERS 保留，見 docs/HANDOFF.md）。different：同天生日的不同人，依姓名判斷。",
+ "duplicates": [
+  {
+   "ids": [
+    "mlb:663941",
+    "kbo:wp4297229"
+   ],
+   "note": "Tristan Beck：2026 季後由美職轉韓職（LG雙子）"
+  },
+  {
+   "ids": [
+    "mlb:681890",
+    "kbo:wp4301977"
+   ],
+   "note": "Troy Watson：2026 季後由美職轉韓職（韓華鷹）"
+  },
+  {
+   "ids": [
+    "npb:21025137",
+    "kbo:wp1276011"
+   ],
+   "note": "福谷浩司：2026 季後由日職轉韓職（培證英雄）"
+  }
+ ],
+ "different": [
+  ["mlb:622268", "cpbl:0000007062", "Donovan Walton / 威能帝"],
+  ["mlb:664728", "cpbl:0000007790", "Kyle Isbel / 魔爾曼"],
+  ["npb:93295157", "cpbl:0000007790", "梅希亞 / 魔爾曼"],
+  ["mlb:687396", "cpbl:0000007832", "Brent Headrick / 悍里歐"],
+  ["mlb:657757", "kbo:55239", "Gavin Sheets / 札克洛格"],
+  ["mlb:664702", "kbo:55633", "Myles Straw / 歐勒"],
+  ["mlb:605397", "kbo:69045", "Joe Musgrove / 阿坎塔拉"],
+  ["mlb:605483", "kbo:69045", "Blake Snell / 阿坎塔拉"],
+  ["mlb:656811", "kbo:wp3219503", "Ryan O'Hearn / 班傑明"],
+  ["npb:21425159", "kbo:wp3832095", "中島大輔 / 白川惠翔"],
+  ["mlb:681807", "kbo:wp4120701", "David Fry / 比斯利"],
+  ["mlb:669364", "kbo:wp4123005", "Xavier Edwards / 懷特"],
+  ["mlb:814305", "kbo:wp4123005", "Yunior Tur / 懷特"],
+  ["mlb:680474", "kbo:wp4222021", "Max Schuemann / 丹尼爾"],
+  ["mlb:681890", "kbo:wp4222021", "Troy Watson / 丹尼爾"],
+  ["mlb:680474", "kbo:wp4301977", "Max Schuemann / 華森"],
+  ["mlb:579328", "npb:21325139", "Yusei Kikuchi / 梅野隆太郎"],
+  ["mlb:579328", "npb:61365139", "Yusei Kikuchi / 大瀬良大地"],
+  ["mlb:622491", "npb:23525153", "Luis Castillo / 歐蘇納"],
+  ["mlb:663992", "npb:73075159", "Richard Lovelady / 雷耶斯"],
+  ["mlb:664728", "npb:93295157", "Kyle Isbel / 梅希亞"],
+  ["mlb:665622", "npb:53755152", "Luis Medina / 馬塔"],
+  ["mlb:665665", "npb:03705152", "Reiver Sanmartin / 莫雷塔"],
+  ["mlb:669326", "npb:11015136", "Bryce Teodosio / 理查德"],
+  ["mlb:671212", "npb:43745152", "Joe Boyle / 勞"],
+  ["mlb:675920", "npb:93595152", "Seth Lonsway / 西摩爾"],
+  ["mlb:677865", "npb:83985152", "Justin Bruihl / 林"],
+  ["mlb:678009", "npb:53755138", "Parker Meadows / 小史都華"],
+  ["mlb:680695", "npb:53755138", "Brennen Davis / 小史都華"],
+  ["mlb:686580", "npb:53355152", "Justin Slaten / 惠特利"],
+  ["mlb:689981", "npb:53955150", "River Ryan / 蒙特羅"],
+  ["mlb:690953", "npb:83285155", "Mick Abel / 羅德里格茲"],
+  ["mlb:695239", "npb:11015136", "Robby Ahlstrom / 理查德"],
+  ["mlb:695378", "npb:53755152", "Jack Sinclair / 馬塔"]
+ ]
+}

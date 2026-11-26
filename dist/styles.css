@@ -445,3 +445,6 @@ html[data-theme=dark] .gm-field input,html[data-theme=dark] .gm-field select{bac
 
 /* v3.8.1 mobile: long stat notes wrap inside their card */
 .stat-card{min-width:0}.stat-card p{white-space:normal;overflow-wrap:anywhere}
+/* v3.9: while a modal is open, the toast moves to the top so it never covers the modal's last lines. */
+body:has(#modal-root .modal-backdrop) #toast{bottom:auto;top:calc(14px + env(safe-area-inset-top));transform:translate(-50%,-20px)}
+body:has(#modal-root .modal-backdrop) #toast.show{transform:translate(-50%,0)}
